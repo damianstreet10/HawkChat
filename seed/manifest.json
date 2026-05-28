@@ -1,0 +1,22 @@
+{
+  "notebooks": [
+    {
+      "notebookId": "useful-resources",
+      "notebookTitle": "Useful Resources",
+      "documentsDir": "useful-resources",
+      "description": "General briefing documents, travel, and production guides."
+    },
+    {
+      "notebookId": "hardware-support",
+      "notebookTitle": "Hardware Support",
+      "documentsDir": "hardware-support",
+      "description": "Hardware manuals and troubleshooting — ask support-specific questions here."
+    },
+    {
+      "notebookId": "kit-quirks",
+      "notebookTitle": "Kit Quirks",
+      "documentsDir": "kit-quirks",
+      "description": "Report kit or PC quirks for admin review (not a chat notebook)."
+    }
+  ]
+}

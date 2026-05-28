@@ -1,0 +1,103 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #000000;
+  --surface: rgba(20, 20, 20, 0.9);
+  --border: rgba(255, 85, 0, 0.15);
+  --text: #fafafa;
+  --muted: #a3a3a3;
+  --orange: #ff5500;
+}
+
+body {
+  color: var(--text);
+  background: #000000;
+  min-height: 100vh;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: radial-gradient(
+      ellipse 70% 50% at 80% 0%,
+      rgba(255, 85, 0, 0.08) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      ellipse 50% 40% at 10% 100%,
+      rgba(255, 85, 0, 0.05) 0%,
+      transparent 45%
+    );
+  pointer-events: none;
+  z-index: 0;
+}
+
+body > * {
+  position: relative;
+  z-index: 1;
+}
+
+@layer components {
+  .hawk-page {
+    @apply min-h-screen bg-hawk-hero;
+  }
+
+  .hawk-header {
+    @apply border-b border-orange/25 bg-hawk-header backdrop-blur-md;
+  }
+
+  .hawk-card {
+    @apply rounded-2xl border border-hawk-600/80 bg-hawk-800/90 shadow-hawk shadow-hawk-inner backdrop-blur-xl;
+  }
+
+  .hawk-card-muted {
+    @apply rounded-xl border border-dashed border-hawk-500/60 bg-hawk-900/60;
+  }
+
+  .hawk-btn-primary {
+    @apply rounded-full bg-hawk-orange font-semibold text-white shadow-hawk-glow transition hover:brightness-110 disabled:opacity-60;
+  }
+
+  .hawk-btn-secondary {
+    @apply rounded-full border border-hawk-500 bg-hawk-800 text-hawk-100 transition hover:border-orange/50 hover:bg-hawk-700;
+  }
+
+  .hawk-input {
+    @apply rounded-lg border border-hawk-500 bg-hawk-900 text-hawk-50 outline-none placeholder:text-hawk-400 focus:border-orange focus:ring-1 focus:ring-orange/40;
+  }
+
+  .hawk-badge {
+    @apply inline-flex items-center gap-1 rounded-full bg-hawk-orange px-2.5 py-0.5 text-xs font-bold text-white;
+  }
+
+  .markdown-hawk h1,
+  .markdown-hawk h2,
+  .markdown-hawk h3 {
+    @apply font-display font-bold text-hawk-50;
+  }
+  .markdown-hawk p {
+    @apply text-hawk-100;
+  }
+  .markdown-hawk strong {
+    @apply text-orange-light;
+  }
+  .markdown-hawk a {
+    @apply text-orange-light underline;
+  }
+  .markdown-hawk ul {
+    @apply list-disc pl-5 text-hawk-100;
+  }
+  .markdown-hawk code {
+    @apply rounded bg-hawk-700 px-1 text-orange-light;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 85, 0, 0.4) transparent;
+  }
+}
