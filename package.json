@@ -3,20 +3,23 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "dev:lan": "next dev -H 0.0.0.0",
-    "dev:fresh": "rm -rf .next && next dev -H 0.0.0.0",
+    "postinstall": "node scripts/ensure-sqlite.mjs",
+    "dev": "node scripts/run-dev.mjs",
+    "dev:lan": "node scripts/run-dev.mjs --lan",
+    "dev:fresh": "node scripts/run-dev.mjs --lan --fresh",
     "build": "next build",
     "start": "next start",
     "start:lan": "next start -H 0.0.0.0",
     "lint": "next lint",
     "build:seed": "tsx scripts/build-seed-db.ts",
     "generate:pdfs": "tsx scripts/generate-demo-pdfs.ts",
-    "setup:lan": "npm run generate:pdfs && echo 'Add OPENAI_API_KEY to .env then: npm run dev:lan'"
+    "setup:lan": "npm run generate:pdfs && echo 'Add OPENAI_API_KEY to .env then: npm run dev:lan'",
+    "health-check": "node scripts/health-check.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^11.8.1",
     "next": "^14.2.28",
+    "nodemailer": "^8.0.10",
     "openai": "^4.104.0",
     "pdf-parse": "^1.1.1",
     "react": "^18.3.1",
@@ -27,6 +30,7 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^20.17.24",
+    "@types/nodemailer": "^8.0.0",
     "@types/pdf-parse": "^1.1.4",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",

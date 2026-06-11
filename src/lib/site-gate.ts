@@ -78,6 +78,18 @@ export function guestLabelCookieOptions(label: string) {
   };
 }
 
+export function clearGuestLabelCookieOptions() {
+  return {
+    name: GUEST_LABEL_COOKIE,
+    value: "",
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 0,
+  };
+}
+
 export function readGuestLabelFromCookie(
   cookieHeader: string | null,
 ): string | undefined {

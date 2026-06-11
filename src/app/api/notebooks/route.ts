@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import { ensureBuiltinDocuments } from "@/lib/auto-seed";
 import { authErrorResponse, requireAuth, requireNotebookManage } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { getNotebookDocumentNames } from "@/lib/notebook-documents";
 import { readSeedManifest } from "@/lib/seed-manifest";
 
 export async function GET(request: Request) {
@@ -31,18 +32,27 @@ export async function GET(request: Request) {
     source_count: number;
   }>;
 
-  if (process.env.HAWKCHAT_LAN_DEMO === "true") {
-    const manifest = readSeedManifest();
-    if (manifest?.length) {
-      const order = manifest.map((n) => n.notebookId);
-      const byId = new Map(notebooks.map((n) => [n.id, n]));
-      notebooks = order
-        .map((id) => byId.get(id))
-        .filter((n): n is NonNullable<typeof n> => Boolean(n));
-    }
+  const manifest = readSeedManifest();
+  const manifestById = new Map(manifest?.map((n) => [n.notebookId, n]) ?? []);
+
+  if (process.env.HAWKCHAT_LAN_DEMO === "true" && manifest?.length) {
+    const order = manifest.map((n) => n.notebookId);
+    const byId = new Map(notebooks.map((n) => [n.id, n]));
+    notebooks = order
+      .map((id) => byId.get(id))
+      .filter((n): n is NonNullable<typeof n> => Boolean(n));
   }
 
-  return NextResponse.json(notebooks);
+  const payload = notebooks.map((nb) => {
+    const manifestEntry = manifestById.get(nb.id);
+    return {
+      ...nb,
+      documents: getNotebookDocumentNames(db, nb.id, manifestEntry),
+      manifestDescription: manifestEntry?.description,
+    };
+  });
+
+  return NextResponse.json(payload);
 }
 
 export async function POST(request: Request) {

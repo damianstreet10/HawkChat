@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { LanDemoBanner } from "@/components/LanDemoBanner";
 import { useSession } from "@/hooks/useSession";
+import { notebookCardDescription } from "@/lib/notebook-description";
+import { isNotebookDisabled } from "@/lib/disabled-notebooks";
 
 const LAN_DEMO = process.env.NEXT_PUBLIC_HAWKCHAT_LAN_DEMO === "true";
 
@@ -13,6 +15,8 @@ type NotebookRow = {
   title: string;
   updated_at: string;
   source_count: number;
+  documents?: string[];
+  manifestDescription?: string;
 };
 
 export default function HomePage() {
@@ -31,9 +35,11 @@ export default function HomePage() {
       const res = await fetch("/api/notebooks");
       if (!res.ok) {
         throw new Error(
-          res.status === 404
-            ? "API not found — restart with: npm run dev:fresh"
-            : `Could not load notebooks (${res.status})`,
+          res.status === 401
+            ? "Site password required — open /login and sign in first"
+            : res.status === 404
+              ? "API not found — restart with: npm run dev:fresh"
+              : `Could not load notebooks (${res.status})`,
         );
       }
       const data = await res.json();
@@ -131,23 +137,58 @@ export default function HomePage() {
           </div>
         ) : (
           <ul className="grid gap-3 sm:grid-cols-2">
-            {notebooks.map((nb) => (
-              <li key={nb.id}>
-                <Link
-                  href={`/notebook/${nb.id}`}
-                  className="hawk-card block p-5 transition hover:border-orange/50 hover:shadow-hawk-glow"
-                >
+            {notebooks.map((nb) => {
+              const disabled = isNotebookDisabled(nb.id);
+              const card = (
+                <>
                   <h4 className="font-display text-lg font-bold text-hawk-50">
                     {nb.title}
                   </h4>
-                  <p className="mt-1 text-sm text-hawk-300">
-                    {nb.id === "kit-quirks"
-                      ? "Submit kit & PC quirks for admin review"
-                      : `${nb.source_count} ${nb.source_count === 1 ? "source" : "sources"} · Updated ${new Date(nb.updated_at).toLocaleDateString()}`}
+                  <p className="mt-1 text-sm leading-relaxed text-hawk-300">
+                    {notebookCardDescription(
+                      nb.id,
+                      nb.documents ?? [],
+                      nb.source_count,
+                      nb.manifestDescription,
+                    )}
+                    {disabled ? (
+                      <span className="mt-1 block text-xs text-hawk-500">
+                        Coming soon
+                      </span>
+                    ) : (
+                      nb.id !== "kit-quirks" && (
+                        <>
+                          {" "}
+                          · Updated{" "}
+                          {new Date(nb.updated_at).toLocaleDateString()}
+                        </>
+                      )
+                    )}
                   </p>
-                </Link>
-              </li>
-            ))}
+                </>
+              );
+
+              return (
+                <li key={nb.id}>
+                  {disabled ? (
+                    <div
+                      className="hawk-card block cursor-not-allowed p-5 opacity-50"
+                      aria-disabled="true"
+                      title="Not available yet"
+                    >
+                      {card}
+                    </div>
+                  ) : (
+                    <Link
+                      href={`/notebook/${nb.id}`}
+                      className="hawk-card block p-5 transition hover:border-orange/50 hover:shadow-hawk-glow"
+                    >
+                      {card}
+                    </Link>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </main>

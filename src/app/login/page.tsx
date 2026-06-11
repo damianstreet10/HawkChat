@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { HawkLogo } from "@/components/HawkLogo";
+import { useSession } from "@/hooks/useSession";
 
 function SiteLoginForm() {
   const router = useRouter();
+  const session = useSession();
   const searchParams = useSearchParams();
   const from = searchParams.get("from") ?? "/";
   const [siteGate, setSiteGate] = useState<boolean | null>(null);
@@ -43,6 +45,7 @@ function SiteLoginForm() {
       return;
     }
 
+    session.refresh();
     router.push(from);
     router.refresh();
   }
@@ -73,23 +76,17 @@ function SiteLoginForm() {
         </div>
 
         <p className="mb-4 text-sm text-hawk-200">
-          Enter the site password to open the briefing notebooks.
+          Login to ask about important documents, software and{" "}
+          <span
+            className="cursor-not-allowed text-hawk-500"
+            title="Not available yet"
+          >
+            hardware troubleshooting
+          </span>
+          , and submit kit quirks.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-hawk-200">
-              Site password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-              className="hawk-input w-full px-3 py-2.5 text-sm"
-            />
-          </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-hawk-200">
               Your name <span className="text-orange">*</span>
@@ -102,6 +99,19 @@ function SiteLoginForm() {
               autoComplete="name"
               className="hawk-input w-full px-3 py-2.5 text-sm"
               placeholder="Required — shown to admins in Activity"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-hawk-200">
+              Site password
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              autoComplete="current-password"
+              className="hawk-input w-full px-3 py-2.5 text-sm"
             />
           </div>
           {error && (

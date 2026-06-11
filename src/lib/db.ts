@@ -121,12 +121,20 @@ function seedAdminFromEnv(database: Database.Database): void {
 
   const now = new Date().toISOString();
   for (const { email, token } of entries) {
-    const existing = database
-      .prepare(`SELECT id FROM users WHERE email = ?`)
-      .get(email);
-    if (existing) continue;
-
     const tokenHash = createHash("sha256").update(token).digest("hex");
+    const existing = database
+      .prepare(`SELECT id, token_hash FROM users WHERE email = ?`)
+      .get(email) as { id: string; token_hash: string } | undefined;
+
+    if (existing) {
+      if (existing.token_hash !== tokenHash) {
+        database
+          .prepare(`UPDATE users SET token_hash = ? WHERE id = ?`)
+          .run(tokenHash, existing.id);
+      }
+      continue;
+    }
+
     database
       .prepare(
         `INSERT INTO users (id, email, name, role, token_hash, created_at)

@@ -1,5 +1,13 @@
 import { NextResponse } from "next/server";
 import {
+  clearSessionCookieOptions,
+  revokeStaffSession,
+} from "@/lib/auth";
+import {
+  clientSessionCookieOptions,
+  generateClientSessionId,
+} from "@/lib/client-session";
+import {
   guestLabelCookieOptions,
   isSiteGateEnabled,
   siteAccessCookieOptions,
@@ -34,8 +42,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Incorrect password" }, { status: 401 });
   }
 
+  revokeStaffSession(request);
+
   const res = NextResponse.json({ ok: true });
   res.cookies.set(siteAccessCookieOptions(siteAccessToken(expected)));
   res.cookies.set(guestLabelCookieOptions(displayName));
+  // Fresh guest session so the next person on this device gets their own identity.
+  res.cookies.set(clientSessionCookieOptions(generateClientSessionId()));
+  res.cookies.set(clearSessionCookieOptions());
   return res;
 }

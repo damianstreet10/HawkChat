@@ -115,6 +115,12 @@ export function deleteSession(sessionId: string): void {
   db.prepare(`DELETE FROM sessions WHERE id = ?`).run(sessionId);
 }
 
+/** End staff sign-in (e.g. when a guest takes over a shared device). */
+export function revokeStaffSession(request: Request): void {
+  const sessionId = getSessionIdFromRequest(request);
+  if (sessionId) deleteSession(sessionId);
+}
+
 export class AuthError extends Error {
   status: number;
   constructor(message: string, status = 401) {

@@ -43,3 +43,20 @@ export function readSeedManifest(): SeedNotebook[] | null {
 
   return null;
 }
+
+const SEED_DOC_EXT = new Set([".pdf", ".txt", ".md", ".markdown"]);
+
+/** Files in seed/{documentsDir} before indexing (LAN demo preview). */
+export function listSeedDocuments(documentsDir: string): string[] {
+  const dir = path.join(process.cwd(), "seed", documentsDir);
+  if (!fs.existsSync(dir)) return [];
+
+  return fs
+    .readdirSync(dir)
+    .filter((file) => {
+      const lower = file.toLowerCase();
+      if (lower.includes("readme")) return false;
+      return SEED_DOC_EXT.has(path.extname(lower));
+    })
+    .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+}

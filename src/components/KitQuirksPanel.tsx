@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 export function KitQuirksPanel() {
   const [reporterName, setReporterName] = useState("");
+  const [reporterEmail, setReporterEmail] = useState("");
   const [kitName, setKitName] = useState("");
   const [assetTag, setAssetTag] = useState("");
   const [quirkDetails, setQuirkDetails] = useState("");
@@ -13,7 +14,12 @@ export function KitQuirksPanel() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/client/session").catch(() => {});
+    fetch("/api/client/session")
+      .then((r) => r.json())
+      .then((data: { guestLabel?: string | null }) => {
+        if (data.guestLabel) setReporterName(data.guestLabel);
+      })
+      .catch(() => {});
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -28,6 +34,7 @@ export function KitQuirksPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           reporterName,
+          reporterEmail,
           kitName,
           assetTag,
           quirkDetails,
@@ -38,6 +45,7 @@ export function KitQuirksPanel() {
       if (!res.ok) throw new Error(data.error ?? "Could not save report");
 
       setSuccess(data.message ?? "Report saved.");
+      setReporterEmail("");
       setKitName("");
       setAssetTag("");
       setQuirkDetails("");
@@ -58,11 +66,26 @@ export function KitQuirksPanel() {
             Report a kit or PC quirk
           </h2>
           <p className="mb-8 text-sm leading-relaxed text-hawk-300">
-            List what kit or PC you are using and describe the issue. Your report
-            is saved for admins to review — this is not a live chat.
+            List what kit or PC you are using and describe the issue. We auto-route
+            reports to the right team (Network, Hardware, PC, Camera). Add your
+            email so we can notify you when the issue is resolved.
           </p>
 
           <form onSubmit={handleSubmit} className="hawk-card space-y-4 p-6">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-hawk-200">
+                Your email <span className="text-orange">*</span>
+              </label>
+              <input
+                type="email"
+                value={reporterEmail}
+                onChange={(e) => setReporterEmail(e.target.value)}
+                required
+                autoComplete="email"
+                className="hawk-input w-full px-3 py-2.5 text-sm"
+                placeholder="you@company.com"
+              />
+            </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-hawk-200">
                 Your name

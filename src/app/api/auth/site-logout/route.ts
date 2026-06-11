@@ -1,15 +1,21 @@
 import { NextResponse } from "next/server";
-import { clearSiteAccessCookieOptions } from "@/lib/site-gate";
+import {
+  clearSessionCookieOptions,
+  revokeStaffSession,
+} from "@/lib/auth";
+import { clearClientSessionCookieOptions } from "@/lib/client-session";
+import {
+  clearGuestLabelCookieOptions,
+  clearSiteAccessCookieOptions,
+} from "@/lib/site-gate";
 
-export async function POST() {
+export async function POST(request: Request) {
+  revokeStaffSession(request);
+
   const res = NextResponse.json({ ok: true });
   res.cookies.set(clearSiteAccessCookieOptions());
-  res.cookies.set({
-    name: "hawkchat_guest_label",
-    value: "",
-    httpOnly: true,
-    path: "/",
-    maxAge: 0,
-  });
+  res.cookies.set(clearGuestLabelCookieOptions());
+  res.cookies.set(clearClientSessionCookieOptions());
+  res.cookies.set(clearSessionCookieOptions());
   return res;
 }

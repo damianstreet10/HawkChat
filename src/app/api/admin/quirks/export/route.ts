@@ -5,9 +5,10 @@ import {
   isQuirkCategoryFilter,
   type QuirkCategoryFilter,
 } from "@/lib/quirk-category";
-import { isQuirkEmailConfigured } from "@/lib/quirk-email";
-import { isQuirkNotifyConfigured } from "@/lib/quirk-notify";
-import { listQuirkReports } from "@/lib/quirk-query";
+import {
+  listQuirkReportsForExport,
+  quirkReportsToCsv,
+} from "@/lib/quirk-query";
 import { isQuirkStatusFilter, type QuirkStatusFilter } from "@/lib/quirk-status";
 
 export async function GET(request: Request) {
@@ -20,10 +21,6 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
-  const limit = Math.min(
-    500,
-    Math.max(1, Number(url.searchParams.get("limit") ?? 200)),
-  );
   const statusParam = url.searchParams.get("status") ?? "all";
   const categoryParam = url.searchParams.get("category") ?? "all";
   const q = url.searchParams.get("q") ?? "";
@@ -38,16 +35,19 @@ export async function GET(request: Request) {
     : "all";
 
   const db = getDb();
-  const reports = listQuirkReports(db, {
+  const reports = listQuirkReportsForExport(db, {
     status: statusFilter,
     category: categoryFilter,
     q,
-    limit,
   });
 
-  return NextResponse.json({
-    reports,
-    smtpConfigured: isQuirkEmailConfigured(),
-    notifyConfigured: isQuirkNotifyConfigured(),
+  const csv = quirkReportsToCsv(reports as Array<Record<string, unknown>>);
+  const stamp = new Date().toISOString().slice(0, 10);
+
+  return new NextResponse(csv, {
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="kit-quirks-${stamp}.csv"`,
+    },
   });
 }

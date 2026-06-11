@@ -33,9 +33,9 @@ export function AppHeader({
   const pathname = usePathname();
   const session = useSession();
   const onAdminPage = pathname?.startsWith("/admin");
-  const [signingOut, setSigningOut] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [siteGate, setSiteGate] = useState(false);
-  const [lockingSite, setLockingSite] = useState(false);
+  const [guestLabel, setGuestLabel] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/auth/site-status")
@@ -49,26 +49,52 @@ export function AppHeader({
     session.user &&
     (session.user.role === "admin" || session.user.role === "monitor");
 
-  async function signOut() {
-    setSigningOut(true);
+  useEffect(() => {
+    if (!siteGate || onAdminPage || isStaff) {
+      setGuestLabel(null);
+      return;
+    }
+    fetch("/api/client/session")
+      .then((r) => r.json())
+      .then((d: { guestLabel?: string | null }) =>
+        setGuestLabel(d.guestLabel?.trim() || null),
+      )
+      .catch(() => setGuestLabel(null));
+  }, [siteGate, onAdminPage, isStaff, pathname]);
+
+  async function signOutStaff() {
+    setLoggingOut(true);
     try {
       await fetch("/api/auth/logout", { method: "POST" });
       session.refresh();
       router.push("/");
       router.refresh();
     } finally {
-      setSigningOut(false);
+      setLoggingOut(false);
     }
   }
 
-  async function lockSite() {
-    setLockingSite(true);
+  async function logoutGuest() {
+    setLoggingOut(true);
     try {
       await fetch("/api/auth/site-logout", { method: "POST" });
+      session.refresh();
       router.push("/login");
       router.refresh();
     } finally {
-      setLockingSite(false);
+      setLoggingOut(false);
+    }
+  }
+
+  async function logoutFromAdmin() {
+    setLoggingOut(true);
+    try {
+      await fetch("/api/auth/site-logout", { method: "POST" });
+      session.refresh();
+      router.push("/login/staff");
+      router.refresh();
+    } finally {
+      setLoggingOut(false);
     }
   }
 
@@ -104,25 +130,44 @@ export function AppHeader({
                   {session.user.role}
                 </span>
               </p>
-              <button
-                type="button"
-                onClick={signOut}
-                disabled={signingOut}
-                className="hawk-btn-secondary px-4 py-2 text-sm disabled:opacity-60"
-              >
-                {signingOut ? "Signing out…" : "Sign out"}
-              </button>
+              {onAdminPage ? (
+                <button
+                  type="button"
+                  onClick={logoutFromAdmin}
+                  disabled={loggingOut}
+                  className="hawk-btn-secondary px-4 py-2 text-sm disabled:opacity-60"
+                >
+                  {loggingOut ? "Logging out…" : "Logout"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={signOutStaff}
+                  disabled={loggingOut}
+                  className="hawk-btn-secondary px-4 py-2 text-sm disabled:opacity-60"
+                >
+                  {loggingOut ? "Signing out…" : "Sign out"}
+                </button>
+              )}
             </>
           )}
-          {siteGate && (
-            <button
-              type="button"
-              onClick={lockSite}
-              disabled={lockingSite}
-              className="hawk-btn-secondary px-4 py-2 text-sm disabled:opacity-60"
-            >
-              {lockingSite ? "Locking…" : "Lock site"}
-            </button>
+          {siteGate && !onAdminPage && !isStaff && (
+            <>
+              {guestLabel && (
+                <p className="text-sm text-hawk-100">
+                  Welcome{" "}
+                  <span className="font-medium text-hawk-50">{guestLabel}</span>
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={logoutGuest}
+                disabled={loggingOut}
+                className="hawk-btn-secondary px-4 py-2 text-sm disabled:opacity-60"
+              >
+                {loggingOut ? "Logging out…" : "Logout"}
+              </button>
+            </>
           )}
           {session.authenticated && session.permissions.canViewActivity && (
             <>

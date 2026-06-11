@@ -13,6 +13,12 @@
       "description": "Hardware manuals and troubleshooting — ask support-specific questions here."
     },
     {
+      "notebookId": "software-support",
+      "notebookTitle": "Software Support",
+      "documentsDir": "software-support",
+      "description": "Software guides, release notes, and troubleshooting — ask software-specific questions here."
+    },
+    {
       "notebookId": "kit-quirks",
       "notebookTitle": "Kit Quirks",
       "documentsDir": "kit-quirks",
