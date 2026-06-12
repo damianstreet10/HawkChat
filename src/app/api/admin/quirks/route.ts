@@ -43,6 +43,7 @@ export async function GET(request: Request) {
     category: categoryFilter,
     q,
     limit,
+    lanOnly: true,
   });
 
   return NextResponse.json({

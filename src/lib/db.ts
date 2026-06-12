@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";
 import { runMigrations } from "./db-migrate";
+import { listEventSlugsFromDisk, readEventManifest } from "./event-manifest";
 
 const DATA_DIR = process.env.HAWKCHAT_DB_DIR
   ? path.resolve(process.env.HAWKCHAT_DB_DIR)
@@ -84,6 +85,8 @@ export function getDb(): Database.Database {
   if (process.env.HAWKCHAT_SEED_BUILD !== "true") {
     seedAdminFromEnv(db);
     seedMonitorsFromEnv(db);
+    seedEventsFromDisk(db);
+    seedEventUsersFromEnv(db);
   }
 
   return db;
@@ -141,6 +144,115 @@ function seedAdminFromEnv(database: Database.Database): void {
          VALUES (?, ?, ?, 'admin', ?, ?)`,
       )
       .run(uuidv4(), email, email.split("@")[0] ?? "Admin", tokenHash, now);
+  }
+}
+
+/** Register events from seed/events/{slug}/manifest.json (does not touch LAN demo). */
+function seedEventsFromDisk(database: Database.Database): void {
+  const now = new Date().toISOString();
+
+  for (const slug of listEventSlugsFromDisk()) {
+    const manifest = readEventManifest(slug);
+    if (!manifest) continue;
+
+    const existing = database
+      .prepare(`SELECT id FROM events WHERE slug = ?`)
+      .get(slug) as { id: string } | undefined;
+
+    if (existing) {
+      database
+        .prepare(`UPDATE events SET title = ?, description = ? WHERE id = ?`)
+        .run(
+          manifest.eventTitle,
+          manifest.eventDescription ?? null,
+          existing.id,
+        );
+      continue;
+    }
+
+    database
+      .prepare(
+        `INSERT INTO events (id, slug, title, description, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
+      )
+      .run(
+        uuidv4(),
+        slug,
+        manifest.eventTitle,
+        manifest.eventDescription ?? null,
+        now,
+      );
+  }
+}
+
+/**
+ * Event-only users (viewer role) — slug:email:token pairs, comma-separated.
+ * Example: champions-league:test@hawkeyeinnovations.com:TEST
+ */
+function seedEventUsersFromEnv(database: Database.Database): void {
+  const raw = process.env.HAWKCHAT_EVENT_USERS?.trim();
+  if (!raw) return;
+
+  const now = new Date().toISOString();
+
+  for (const entry of raw.split(",")) {
+    const part = entry.trim();
+    if (!part) continue;
+    const firstColon = part.indexOf(":");
+    const secondColon = part.indexOf(":", firstColon + 1);
+    if (firstColon === -1 || secondColon === -1) continue;
+
+    const slug = part.slice(0, firstColon).trim();
+    const email = part.slice(firstColon + 1, secondColon).trim().toLowerCase();
+    const token = part.slice(secondColon + 1).trim();
+    if (!slug || !email || !token) continue;
+
+    const event = database
+      .prepare(`SELECT id FROM events WHERE slug = ?`)
+      .get(slug) as { id: string } | undefined;
+    if (!event) continue;
+
+    const tokenHash = createHash("sha256").update(token).digest("hex");
+    let user = database
+      .prepare(`SELECT id, token_hash FROM users WHERE email = ?`)
+      .get(email) as { id: string; token_hash: string } | undefined;
+
+    if (!user) {
+      const userId = uuidv4();
+      const local = email.split("@")[0] ?? "User";
+      const name = local
+        .split(/[._-]+/)
+        .filter(Boolean)
+        .map(
+          (p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase(),
+        )
+        .join(" ");
+
+      database
+        .prepare(
+          `INSERT INTO users (id, email, name, role, token_hash, created_at)
+           VALUES (?, ?, ?, 'viewer', ?, ?)`,
+        )
+        .run(userId, email, name || "User", tokenHash, now);
+      user = { id: userId, token_hash: tokenHash };
+    } else if (user.token_hash !== tokenHash) {
+      database
+        .prepare(`UPDATE users SET token_hash = ? WHERE id = ?`)
+        .run(tokenHash, user.id);
+    }
+
+    const member = database
+      .prepare(
+        `SELECT 1 FROM event_members WHERE event_id = ? AND user_id = ?`,
+      )
+      .get(event.id, user.id);
+    if (!member) {
+      database
+        .prepare(
+          `INSERT INTO event_members (event_id, user_id, created_at) VALUES (?, ?, ?)`,
+        )
+        .run(event.id, user.id, now);
+    }
   }
 }
 

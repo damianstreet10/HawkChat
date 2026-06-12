@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireMonitor } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { listEventExchanges } from "@/lib/event-activity";
 
+/** World Cup / LAN demo chat feedback only (not tournament events). */
 export async function GET(request: Request) {
   try {
     requireMonitor(request);
@@ -18,17 +20,7 @@ export async function GET(request: Request) {
   );
 
   const db = getDb();
-  const rows = db
-    .prepare(
-      `SELECT m.id, m.notebook_id, m.content, m.client_ip, m.client_session_id,
-              m.guest_label, m.created_at, n.title AS notebook_title
-       FROM messages m
-       JOIN notebooks n ON n.id = m.notebook_id
-       WHERE m.role = 'user'
-       ORDER BY m.created_at DESC
-       LIMIT ?`,
-    )
-    .all(limit);
+  const exchanges = listEventExchanges(db, limit, { lanOnly: true });
 
-  return NextResponse.json({ questions: rows });
+  return NextResponse.json({ exchanges });
 }

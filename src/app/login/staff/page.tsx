@@ -8,7 +8,7 @@ import { HawkLogo } from "@/components/HawkLogo";
 function StaffLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const from = searchParams.get("from") ?? "/admin/activity";
+  const from = searchParams.get("from") ?? "/events";
   const [email, setEmail] = useState("");
   const [token, setToken] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +32,7 @@ function StaffLoginForm() {
       return;
     }
 
-    router.push(from);
+    router.push(data.redirectTo ?? from);
     router.refresh();
   }
 

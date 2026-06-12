@@ -169,26 +169,6 @@ export function AppHeader({
               </button>
             </>
           )}
-          {session.authenticated && session.permissions.canViewActivity && (
-            <>
-              {pathname !== "/admin/activity" && (
-                <Link
-                  href="/admin/activity"
-                  className="hawk-btn-secondary px-4 py-2 text-sm"
-                >
-                  Activity
-                </Link>
-              )}
-              {pathname !== "/admin/quirks" && (
-                <Link
-                  href="/admin/quirks"
-                  className="hawk-btn-secondary px-4 py-2 text-sm"
-                >
-                  Kit quirks
-                </Link>
-              )}
-            </>
-          )}
           {onAdminPage && (
             <Link href="/" className="hawk-btn-secondary px-4 py-2 text-sm">
               Home

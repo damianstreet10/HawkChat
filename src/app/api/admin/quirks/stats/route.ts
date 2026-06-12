@@ -14,5 +14,5 @@ export async function GET(request: Request) {
   }
 
   const db = getDb();
-  return NextResponse.json(quirkCategoryStats(db));
+  return NextResponse.json(quirkCategoryStats(db, { lanOnly: true }));
 }

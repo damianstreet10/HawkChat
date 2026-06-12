@@ -5,7 +5,7 @@ export function notebookCardDescription(
   sourceCount: number,
   manifestDescription?: string,
 ): string {
-  if (notebookId === "kit-quirks") {
+  if (notebookId === "kit-quirks" || notebookId.endsWith("-kit-quirks")) {
     return "Submit kit & PC quirks for admin review";
   }
 

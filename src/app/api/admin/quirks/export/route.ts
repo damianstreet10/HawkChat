@@ -39,6 +39,7 @@ export async function GET(request: Request) {
     status: statusFilter,
     category: categoryFilter,
     q,
+    lanOnly: true,
   });
 
   const csv = quirkReportsToCsv(reports as Array<Record<string, unknown>>);

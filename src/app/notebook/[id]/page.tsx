@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import { useEffect, useState } from "react";
 import { ChatPanel } from "@/components/ChatPanel";
 import { KitQuirksPanel } from "@/components/KitQuirksPanel";
@@ -12,9 +13,13 @@ import { isKitQuirksNotebook } from "@/lib/kit-quirks";
 
 const LAN_DEMO = process.env.NEXT_PUBLIC_HAWKCHAT_LAN_DEMO === "true";
 
-export default function NotebookPage() {
+function NotebookPageContent() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const id = params.id as string;
+  const eventSlug = searchParams.get("event");
+  const homeHref = eventSlug ? `/events/${eventSlug}` : "/";
+  const homeLabel = eventSlug ? "← Tournament" : "← Home";
   const { permissions } = useSession();
   const canManage = permissions.canManageNotebooks && !LAN_DEMO;
   const isQuirks = isKitQuirksNotebook(id);
@@ -44,10 +49,10 @@ export default function NotebookPage() {
     <div className="flex h-screen flex-col bg-hawk-hero">
       <header className="hawk-header flex shrink-0 items-center gap-4 px-4 py-3">
         <Link
-          href="/"
+          href={homeHref}
           className="text-sm text-hawk-300 transition hover:text-orange"
         >
-          ← Home
+          {homeLabel}
         </Link>
         <HawkLogo size={24} />
         {canManage && editing ? (
@@ -82,8 +87,20 @@ export default function NotebookPage() {
         }
       >
         {!LAN_DEMO && !isQuirks && <SourcesPanel notebookId={id} />}
-        {isQuirks ? <KitQuirksPanel /> : <ChatPanel notebookId={id} />}
+        {isQuirks ? (
+          <KitQuirksPanel eventSlug={eventSlug ?? undefined} />
+        ) : (
+          <ChatPanel notebookId={id} />
+        )}
       </div>
     </div>
+  );
+}
+
+export default function NotebookPage() {
+  return (
+    <Suspense>
+      <NotebookPageContent />
+    </Suspense>
   );
 }

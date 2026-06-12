@@ -4,6 +4,7 @@ import {
   getAuthUserFromRequest,
   isAuthRequired,
 } from "@/lib/auth";
+import { getUserEvents } from "@/lib/events";
 import { canManageUsers, canUploadSources, canViewActivity } from "@/lib/permissions";
 
 function permissionsFor(role: "viewer" | "contributor" | "admin" | "monitor") {
@@ -32,6 +33,7 @@ export async function GET(request: Request) {
               role: user.role,
             }
           : null,
+        events: user ? getUserEvents(user.id) : [],
         permissions: user
           ? permissionsFor(user.role)
           : {
@@ -66,6 +68,7 @@ export async function GET(request: Request) {
         name: user.name,
         role: user.role,
       },
+      events: getUserEvents(user.id),
       permissions: permissionsFor(user.role),
     });
   } catch (err) {

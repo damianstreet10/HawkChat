@@ -33,7 +33,15 @@ export async function middleware(request: NextRequest) {
   const monitorRoute =
     pathname.startsWith("/admin") || pathname.startsWith("/api/admin");
 
+  const eventPageRoute =
+    (pathname === "/events" || pathname.startsWith("/events/")) &&
+    !pathname.startsWith("/api/");
+
   const staffSession = request.cookies.get(SESSION_COOKIE)?.value;
+
+  if (pathname === "/" && staffSession) {
+    return NextResponse.redirect(new URL("/events", request.url));
+  }
 
   // Site-wide password (public deployment) — staff login bypasses site password
   if (isSiteGateEnabledEdge() && !staffSession) {
@@ -50,6 +58,17 @@ export async function middleware(request: NextRequest) {
       loginUrl.searchParams.set("from", pathname);
       return NextResponse.redirect(loginUrl);
     }
+  }
+
+  // Tournament / event spaces — staff sign-in (event members use access tokens)
+  if (eventPageRoute) {
+    const session = request.cookies.get(SESSION_COOKIE)?.value;
+    if (!session) {
+      const staffUrl = new URL("/login/staff", request.url);
+      staffUrl.searchParams.set("from", pathname);
+      return NextResponse.redirect(staffUrl);
+    }
+    return NextResponse.next();
   }
 
   // Staff-only admin routes

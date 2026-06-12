@@ -11,6 +11,7 @@ import { inferQuirkCategory, quirkCategoryLabel } from "@/lib/quirk-auto-categor
 import type { QuirkCategory } from "@/lib/quirk-category";
 import { notifyNewQuirkReport } from "@/lib/quirk-notify";
 import { allocateQuirkReferenceId } from "@/lib/quirk-reference";
+import { readEventSlugFromCookie } from "@/lib/event-cookie";
 import { readGuestLabelFromCookie } from "@/lib/site-gate";
 import { isValidEmail, normalizeEmail } from "@/lib/validate-email";
 
@@ -38,6 +39,10 @@ export async function POST(request: Request) {
     typeof body.assetTag === "string" ? body.assetTag.trim() : "";
   const extraNotes =
     typeof body.extraNotes === "string" ? body.extraNotes.trim() : "";
+  const eventSlug =
+    (typeof body.eventSlug === "string" ? body.eventSlug.trim() : "") ||
+    readEventSlugFromCookie(request.headers.get("cookie")) ||
+    null;
 
   if (!kitName || !quirkDetails) {
     return NextResponse.json(
@@ -75,8 +80,8 @@ export async function POST(request: Request) {
     `INSERT INTO quirk_reports (
        id, reference_id, reporter_name, reporter_email, kit_name, asset_tag,
        quirk_details, extra_notes, category, category_source,
-       client_ip, client_session_id, guest_label, created_at, status
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'auto', ?, ?, ?, ?, 'new')`,
+       client_ip, client_session_id, guest_label, created_at, status, event_slug
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'auto', ?, ?, ?, ?, 'new', ?)`,
   ).run(
     id,
     referenceId,
@@ -91,6 +96,7 @@ export async function POST(request: Request) {
     clientSessionId,
     guestLabel,
     now,
+    eventSlug,
   );
 
   notifyNewQuirkReport({

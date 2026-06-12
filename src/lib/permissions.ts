@@ -29,6 +29,10 @@ export function canViewActivity(role: Role): boolean {
   return role === "admin" || role === "monitor";
 }
 
+export function isStaffPortalRole(role: string): boolean {
+  return role === "admin" || role === "monitor";
+}
+
 export const ROLE_LABELS: Record<Role, string> = {
   viewer: "View only — chat only",
   monitor: "Monitor — view guest questions & IPs only",

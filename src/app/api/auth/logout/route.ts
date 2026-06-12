@@ -4,6 +4,7 @@ import {
   deleteSession,
   getSessionIdFromRequest,
 } from "@/lib/auth";
+import { clearEventCookieOptions } from "@/lib/event-cookie";
 
 export async function POST(request: Request) {
   const sessionId = getSessionIdFromRequest(request);
@@ -11,5 +12,6 @@ export async function POST(request: Request) {
 
   const response = NextResponse.json({ ok: true });
   response.cookies.set(clearSessionCookieOptions());
+  response.cookies.set(clearEventCookieOptions());
   return response;
 }

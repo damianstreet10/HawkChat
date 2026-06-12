@@ -6,7 +6,7 @@ export const QUIRK_REPORT_COLUMNS = `
   id, reference_id, reporter_name, reporter_email, kit_name, asset_tag,
   quirk_details, extra_notes, resolution_notes, category, category_source,
   client_ip, client_session_id, guest_label, created_at, status,
-  resolved_at, resolved_by
+  resolved_at, resolved_by, event_slug
 `;
 
 export type QuirkListParams = {
@@ -14,6 +14,10 @@ export type QuirkListParams = {
   category: QuirkCategoryFilter;
   q: string;
   limit: number;
+  /** Tournament slug — when set, only quirks for that event. */
+  eventSlug?: string;
+  /** LAN demo scope — quirks with no event_slug (World Cup site). */
+  lanOnly?: boolean;
 };
 
 function buildQuirkListQuery(params: QuirkListParams): {
@@ -33,6 +37,13 @@ function buildQuirkListQuery(params: QuirkListParams): {
   } else if (params.category !== "all") {
     conditions.push("category = ?");
     bindings.push(params.category);
+  }
+
+  if (params.eventSlug) {
+    conditions.push("event_slug = ?");
+    bindings.push(params.eventSlug);
+  } else if (params.lanOnly) {
+    conditions.push("(event_slug IS NULL OR event_slug = '')");
   }
 
   const search = params.q.trim();
@@ -79,20 +90,35 @@ export function listQuirkReportsForExport(
   return listQuirkReports(db, { ...params, limit: 5000 });
 }
 
-export function quirkCategoryStats(db: Database.Database) {
+export function quirkCategoryStats(
+  db: Database.Database,
+  scope?: { eventSlug?: string; lanOnly?: boolean },
+) {
+  const conditions: string[] = [];
+  const bindings: unknown[] = [];
+  if (scope?.eventSlug) {
+    conditions.push("event_slug = ?");
+    bindings.push(scope.eventSlug);
+  } else if (scope?.lanOnly) {
+    conditions.push("(event_slug IS NULL OR event_slug = '')");
+  }
+  const where =
+    conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
   const total = (
-    db.prepare(`SELECT COUNT(*) as c FROM quirk_reports`).get() as {
-      c: number;
-    }
+    db.prepare(`SELECT COUNT(*) as c FROM quirk_reports ${where}`).get(
+      ...bindings,
+    ) as { c: number }
   ).c;
 
   const rows = db
     .prepare(
       `SELECT COALESCE(NULLIF(category, ''), 'uncategorized') as bucket, COUNT(*) as c
        FROM quirk_reports
+       ${where}
        GROUP BY bucket`,
     )
-    .all() as Array<{ bucket: string; c: number }>;
+    .all(...bindings) as Array<{ bucket: string; c: number }>;
 
   const byCategory: Record<string, number> = {};
   for (const row of rows) {

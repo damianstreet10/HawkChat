@@ -23,7 +23,7 @@ export async function GET(request: Request, { params }: Params) {
   const db = getDb();
   const rows = db
     .prepare(
-      `SELECT id, notebook_id, role, content, citations, created_at
+      `SELECT id, notebook_id, role, content, citations, created_at, feedback
        FROM messages
        WHERE notebook_id = ? AND client_session_id = ?
        ORDER BY created_at ASC`,
@@ -35,6 +35,7 @@ export async function GET(request: Request, { params }: Params) {
     content: string;
     citations: string | null;
     created_at: string;
+    feedback: string | null;
   }>;
 
   const messages = rows.map((r) => {

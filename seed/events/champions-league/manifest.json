@@ -1,0 +1,24 @@
+{
+  "eventTitle": "Champions League (test)",
+  "eventDescription": "Test tournament space for trying event notebooks, activity, and kit quirks before go-live.",
+  "notebooks": [
+    {
+      "notebookId": "ucl-briefing",
+      "notebookTitle": "Tournament Briefing",
+      "documentsDir": "events/champions-league/briefing",
+      "description": "Competition overview, travel, and production guides for UCL."
+    },
+    {
+      "notebookId": "ucl-software",
+      "notebookTitle": "Software Support",
+      "documentsDir": "events/champions-league/software",
+      "description": "Software troubleshooting and release notes for this tournament."
+    },
+    {
+      "notebookId": "ucl-kit-quirks",
+      "notebookTitle": "Kit Quirks",
+      "documentsDir": "events/champions-league/kit-quirks",
+      "description": "Report kit or PC quirks for admin review (not a chat notebook)."
+    }
+  ]
+}

@@ -5,12 +5,15 @@ import { allocateQuirkReferenceId } from "./quirk-reference";
 export function runMigrations(database: Database.Database): void {
   migrateMessageClientColumns(database);
   migrateMessageGuestLabel(database);
+  migrateMessageFeedback(database);
   migrateQuirkReports(database);
   migrateQuirkReportStatus(database);
   migrateQuirkReporterEmail(database);
   migrateQuirkReportExtras(database);
   migrateQuirkCategorySource(database);
   migrateUserMonitorRole(database);
+  migrateEvents(database);
+  migrateQuirkEventSlug(database);
 }
 
 function migrateQuirkReports(database: Database.Database): void {
@@ -143,6 +146,57 @@ function migrateMessageGuestLabel(database: Database.Database): void {
   }
 }
 
+function migrateMessageFeedback(database: Database.Database): void {
+  const cols = database
+    .prepare(`PRAGMA table_info(messages)`)
+    .all() as Array<{ name: string }>;
+  const names = new Set(cols.map((c) => c.name));
+
+  if (!names.has("user_message_id")) {
+    database.exec(`ALTER TABLE messages ADD COLUMN user_message_id TEXT`);
+  }
+  if (!names.has("feedback")) {
+    database.exec(`ALTER TABLE messages ADD COLUMN feedback TEXT`);
+  }
+  if (!names.has("feedback_at")) {
+    database.exec(`ALTER TABLE messages ADD COLUMN feedback_at TEXT`);
+  }
+
+  const assistants = database
+    .prepare(
+      `SELECT id, notebook_id, client_session_id, created_at
+       FROM messages
+       WHERE role = 'assistant'
+         AND (user_message_id IS NULL OR user_message_id = '')`,
+    )
+    .all() as Array<{
+    id: string;
+    notebook_id: string;
+    client_session_id: string | null;
+    created_at: string;
+  }>;
+
+  const findUser = database.prepare(
+    `SELECT id FROM messages
+     WHERE notebook_id = ? AND role = 'user'
+       AND client_session_id IS ? AND created_at < ?
+     ORDER BY created_at DESC
+     LIMIT 1`,
+  );
+  const linkUser = database.prepare(
+    `UPDATE messages SET user_message_id = ? WHERE id = ?`,
+  );
+
+  for (const row of assistants) {
+    const user = findUser.get(
+      row.notebook_id,
+      row.client_session_id,
+      row.created_at,
+    ) as { id: string } | undefined;
+    if (user) linkUser.run(user.id, row.id);
+  }
+}
+
 function migrateMessageClientColumns(database: Database.Database): void {
   const cols = database
     .prepare(`PRAGMA table_info(messages)`)
@@ -158,6 +212,41 @@ function migrateMessageClientColumns(database: Database.Database): void {
       `CREATE INDEX IF NOT EXISTS idx_messages_client_session ON messages(client_session_id)`,
     );
   }
+}
+
+function migrateQuirkEventSlug(database: Database.Database): void {
+  const cols = database
+    .prepare(`PRAGMA table_info(quirk_reports)`)
+    .all() as Array<{ name: string }>;
+  if (!cols.some((c) => c.name === "event_slug")) {
+    database.exec(`ALTER TABLE quirk_reports ADD COLUMN event_slug TEXT`);
+    database.exec(
+      `CREATE INDEX IF NOT EXISTS idx_quirk_reports_event ON quirk_reports(event_slug)`,
+    );
+  }
+}
+
+function migrateEvents(database: Database.Database): void {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS events (
+      id TEXT PRIMARY KEY,
+      slug TEXT NOT NULL UNIQUE,
+      title TEXT NOT NULL,
+      description TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS event_members (
+      event_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (event_id, user_id),
+      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_event_members_user ON event_members(user_id);
+  `);
 }
 
 function migrateUserMonitorRole(database: Database.Database): void {

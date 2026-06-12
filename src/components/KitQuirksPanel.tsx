@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-export function KitQuirksPanel() {
+export function KitQuirksPanel({ eventSlug }: { eventSlug?: string }) {
   const [reporterName, setReporterName] = useState("");
   const [reporterEmail, setReporterEmail] = useState("");
   const [kitName, setKitName] = useState("");
@@ -39,6 +39,7 @@ export function KitQuirksPanel() {
           assetTag,
           quirkDetails,
           extraNotes,
+          eventSlug: eventSlug ?? undefined,
         }),
       });
       const data = await res.json();

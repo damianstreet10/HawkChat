@@ -4,6 +4,7 @@ import ReactMarkdown from "react-markdown";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CitationList } from "./CitationList";
 import type { Citation } from "@/lib/db";
+import type { MessageFeedback } from "@/lib/message-feedback";
 
 type Message = {
   id: string;
@@ -11,7 +12,83 @@ type Message = {
   content: string;
   citations: Citation[] | null;
   created_at: string;
+  feedback?: MessageFeedback | null;
 };
+
+function canRateMessage(id: string): boolean {
+  return !id.startsWith("temp-") && !id.startsWith("err-");
+}
+
+function MessageFeedbackButtons({
+  notebookId,
+  messageId,
+  feedback,
+  onFeedback,
+}: {
+  notebookId: string;
+  messageId: string;
+  feedback?: MessageFeedback | null;
+  onFeedback: (value: MessageFeedback) => void;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+
+  if (!canRateMessage(messageId)) return null;
+
+  async function submit(value: MessageFeedback) {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(
+        `/api/notebooks/${notebookId}/messages/${messageId}/feedback`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ feedback: value }),
+        },
+      );
+      if (!res.ok) return;
+      onFeedback(value);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (feedback) {
+    return (
+      <p
+        className={`mt-3 border-t border-hawk-700 pt-3 text-xs ${
+          feedback === "helpful" ? "text-emerald-300" : "text-hawk-400"
+        }`}
+      >
+        {feedback === "helpful"
+          ? "Thanks — marked as helpful."
+          : "Thanks — marked as not helpful."}
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-hawk-700 pt-3">
+      <span className="text-xs text-hawk-400">Was this helpful?</span>
+      <button
+        type="button"
+        onClick={() => submit("helpful")}
+        disabled={submitting}
+        className="hawk-btn-secondary px-3 py-1 text-xs disabled:opacity-60"
+      >
+        This helped
+      </button>
+      <button
+        type="button"
+        onClick={() => submit("not_helpful")}
+        disabled={submitting}
+        className="hawk-btn-secondary px-3 py-1 text-xs disabled:opacity-60"
+      >
+        This didn&apos;t help
+      </button>
+    </div>
+  );
+}
 
 const SUGGESTIONS = [
   "Summarize the key themes across my sources",
@@ -92,6 +169,7 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
           content: data.assistantMessage.content,
           citations: data.assistantMessage.citations,
           created_at: data.assistantMessage.created_at,
+          feedback: null,
         },
       ]);
     } catch (err) {
@@ -159,6 +237,18 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
                     {msg.citations && (
                       <CitationList citations={msg.citations} />
                     )}
+                    <MessageFeedbackButtons
+                      notebookId={notebookId}
+                      messageId={msg.id}
+                      feedback={msg.feedback}
+                      onFeedback={(value) =>
+                        setMessages((prev) =>
+                          prev.map((m) =>
+                            m.id === msg.id ? { ...m, feedback: value } : m,
+                          ),
+                        )
+                      }
+                    />
                   </div>
                 ) : (
                   <p className="text-[15px] text-hawk-50">{msg.content}</p>

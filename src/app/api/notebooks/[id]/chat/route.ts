@@ -85,8 +85,10 @@ export async function POST(request: Request, { params }: Params) {
     const assistantMsgId = uuidv4();
     const assistantNow = new Date().toISOString();
     db.prepare(
-      `INSERT INTO messages (id, notebook_id, role, content, citations, created_at, client_session_id, client_ip, guest_label)
-       VALUES (?, ?, 'assistant', ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO messages (
+         id, notebook_id, role, content, citations, created_at,
+         client_session_id, client_ip, guest_label, user_message_id
+       ) VALUES (?, ?, 'assistant', ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       assistantMsgId,
       params.id,
@@ -96,6 +98,7 @@ export async function POST(request: Request, { params }: Params) {
       clientSessionId,
       clientIp,
       guestLabel ?? null,
+      userMsgId,
     );
 
     db.prepare(`UPDATE notebooks SET updated_at = ? WHERE id = ?`).run(

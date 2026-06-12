@@ -6,6 +6,7 @@ import {
   sessionCookieOptions,
 } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { loginRedirectForUser } from "@/lib/events";
 import {
   grantSiteAccessCookieOptions,
   isSiteGateEnabled,
@@ -49,11 +50,13 @@ export async function POST(request: Request) {
     }
 
     const sessionId = createSession(user.id);
+    const redirectTo = loginRedirectForUser(user.id, user.role);
     const response = NextResponse.json({
       id: user.id,
       email: user.email,
       name: user.name,
       role: user.role,
+      redirectTo,
     });
     response.cookies.set(sessionCookieOptions(sessionId));
     if (isSiteGateEnabled()) {

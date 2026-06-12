@@ -4,6 +4,7 @@ import {
   revokeStaffSession,
 } from "@/lib/auth";
 import { clearClientSessionCookieOptions } from "@/lib/client-session";
+import { clearEventCookieOptions } from "@/lib/event-cookie";
 import {
   clearGuestLabelCookieOptions,
   clearSiteAccessCookieOptions,
@@ -16,6 +17,7 @@ export async function POST(request: Request) {
   res.cookies.set(clearSiteAccessCookieOptions());
   res.cookies.set(clearGuestLabelCookieOptions());
   res.cookies.set(clearClientSessionCookieOptions());
+  res.cookies.set(clearEventCookieOptions());
   res.cookies.set(clearSessionCookieOptions());
   return res;
 }
