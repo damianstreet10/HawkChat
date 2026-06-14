@@ -22,6 +22,9 @@ export default function EventsPickerPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const isStaff =
+    session.user && isStaffPortalRole(session.user.role);
+
   useEffect(() => {
     if (session.loading) return;
     if (!session.authenticated) {
@@ -34,12 +37,6 @@ export default function EventsPickerPage() {
       .then((data) => {
         const list = data.events ?? [];
         setEvents(list);
-
-        const isStaff =
-          session.user && isStaffPortalRole(session.user.role);
-        if (!isStaff && list.length === 1) {
-          router.replace(`/events/${list[0].slug}`);
-        }
       })
       .catch(() => setError("Could not load events."))
       .finally(() => setLoading(false));
@@ -53,8 +50,9 @@ export default function EventsPickerPage() {
           Choose an event
         </h2>
         <p className="mb-8 text-sm text-hawk-300">
-          Select an event to review notebooks, guest chat feedback, and kit
-          quirks. World Cup 2026 shows live data from the public site.
+          {isStaff
+            ? "Select an event to review notebooks, guest chat feedback, and kit quirks. World Cup 2026 shows live data from the public site."
+            : "Select one of your tournaments to open its notebooks. You only see events you have been added to."}
         </p>
 
         {loading ? (

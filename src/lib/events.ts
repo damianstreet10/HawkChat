@@ -39,6 +39,16 @@ export function listEvents(): EventRow[] {
     .all() as EventRow[];
 }
 
+export function deleteEventBySlug(slug: string): boolean {
+  const db = getDb();
+  const event = getEventBySlug(slug);
+  if (!event) return false;
+
+  db.prepare(`DELETE FROM quirk_reports WHERE event_slug = ?`).run(slug);
+  db.prepare(`DELETE FROM events WHERE id = ?`).run(event.id);
+  return true;
+}
+
 export function getUserEvents(userId: string): EventRow[] {
   const db = getDb();
   return db
@@ -96,6 +106,5 @@ export function loginRedirectForUser(
 
   const events = getUserEvents(userId);
   if (events.length === 0) return null;
-  if (events.length === 1) return `/events/${events[0].slug}`;
   return "/events";
 }

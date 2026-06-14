@@ -6,7 +6,9 @@ import {
   requireAdmin,
 } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { listEvents } from "@/lib/events";
+import { provisionEventNotebooks } from "@/lib/event-provision";
+import { getUserEvents, listEvents } from "@/lib/events";
+import { isNotebookTemplateId } from "@/lib/notebook-templates";
 import { isStaffPortalRole } from "@/lib/permissions";
 import {
   getEventManifestNotebooks,
@@ -30,16 +32,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ events });
     }
 
-    const db = getDb();
-    const events = db
-      .prepare(
-        `SELECT e.id, e.slug, e.title, e.description, e.created_at
-         FROM events e
-         JOIN event_members em ON em.event_id = e.id
-         WHERE em.user_id = ?
-         ORDER BY e.title`,
-      )
-      .all(user.id);
+    const events = sortEventsForPicker(
+      getUserEvents(user.id).map((event) => ({
+        ...event,
+        notebookCount: getEventManifestNotebooks(event.slug).length,
+      })),
+    );
 
     return NextResponse.json({ events });
   } catch (err) {
@@ -72,10 +70,23 @@ export async function POST(request: Request) {
         .map((e: string) => e.trim().toLowerCase())
         .filter(Boolean)
     : [];
+  const notebookTemplates = Array.isArray(body.notebookTemplates)
+    ? body.notebookTemplates
+        .filter((id: unknown) => typeof id === "string")
+        .map((id: string) => id.trim())
+        .filter(isNotebookTemplateId)
+    : [];
 
   if (!slug || !title) {
     return NextResponse.json(
       { error: "slug and title are required" },
+      { status: 400 },
+    );
+  }
+
+  if (notebookTemplates.length === 0) {
+    return NextResponse.json(
+      { error: "Select at least one notebook template." },
       { status: 400 },
     );
   }
@@ -116,6 +127,31 @@ export async function POST(request: Request) {
     added.push(email);
   }
 
+  let provisioned: {
+    notebooks: string[];
+    copiedFiles: number;
+  } | null = null;
+
+  try {
+    provisioned = provisionEventNotebooks(
+      slug,
+      title,
+      description,
+      notebookTemplates,
+    );
+  } catch (err) {
+    db.prepare(`DELETE FROM events WHERE id = ?`).run(eventId);
+    return NextResponse.json(
+      {
+        error:
+          err instanceof Error
+            ? err.message
+            : "Could not set up event notebooks.",
+      },
+      { status: 500 },
+    );
+  }
+
   return NextResponse.json({
     id: eventId,
     slug,
@@ -123,6 +159,8 @@ export async function POST(request: Request) {
     description: description || null,
     membersAdded: added,
     membersMissing: missing,
-    setupHint: `Add seed/events/${slug}/manifest.json and PDF folders, then restart the app.`,
+    notebooks: provisioned.notebooks,
+    copiedFiles: provisioned.copiedFiles,
+    setupHint: `Event manifest written to seed/events/${slug}/. Add more PDFs there or restart with HAWKCHAT_AUTO_SEED=true to index documents.`,
   });
 }

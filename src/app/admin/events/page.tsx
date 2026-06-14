@@ -3,7 +3,14 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { StaffPortalHeader } from "@/components/StaffPortalHeader";
+import { SeedFileExplorer } from "@/components/SeedFileExplorer";
 import { useSession } from "@/hooks/useSession";
+import { WORLD_CUP_EVENT_SLUG } from "@/lib/world-cup-constants";
+import {
+  NOTEBOOK_TEMPLATE_IDS,
+  notebookTemplateHasSeedFiles,
+  type NotebookTemplateId,
+} from "@/lib/notebook-templates";
 
 type EventRow = {
   id: string;
@@ -11,6 +18,24 @@ type EventRow = {
   title: string;
   description: string | null;
   notebookCount?: number;
+};
+
+type NotebookTemplate = {
+  id: NotebookTemplateId;
+  title: string;
+  pickerLabel: string;
+  description: string;
+  sourceDir: string;
+  files: string[];
+  fileCount: number;
+};
+
+type EventNotebookFiles = {
+  notebookId: string;
+  notebookTitle: string;
+  seedPath: string;
+  pickerLabel: string | null;
+  files: string[];
 };
 
 export default function AdminEventsPage() {
@@ -24,6 +49,27 @@ export default function AdminEventsPage() {
   const [memberEmails, setMemberEmails] = useState("");
   const [creating, setCreating] = useState(false);
   const [createMessage, setCreateMessage] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<EventRow | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<NotebookTemplate[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(true);
+  const [selectedTemplates, setSelectedTemplates] = useState<
+    Set<NotebookTemplateId>
+  >(() => new Set(NOTEBOOK_TEMPLATE_IDS));
+  const [expandedTemplate, setExpandedTemplate] =
+    useState<NotebookTemplateId | null>(null);
+  const [fileManagerEvent, setFileManagerEvent] = useState<EventRow | null>(
+    null,
+  );
+  const [fileManagerNotebooks, setFileManagerNotebooks] = useState<
+    EventNotebookFiles[]
+  >([]);
+  const [fileManagerLoading, setFileManagerLoading] = useState(false);
+  const [fileManagerError, setFileManagerError] = useState<string | null>(
+    null,
+  );
 
   const canAccess =
     session.authenticated && session.user?.role === "admin";
@@ -41,6 +87,16 @@ export default function AdminEventsPage() {
     setLoading(false);
   }, []);
 
+  const loadTemplates = useCallback(async () => {
+    setTemplatesLoading(true);
+    const res = await fetch("/api/admin/events/notebook-templates");
+    if (res.ok) {
+      const data = await res.json();
+      setTemplates(data.templates ?? []);
+    }
+    setTemplatesLoading(false);
+  }, []);
+
   useEffect(() => {
     if (session.loading) return;
     if (!canAccess) {
@@ -49,12 +105,52 @@ export default function AdminEventsPage() {
       return;
     }
     load();
-  }, [session.loading, canAccess, load]);
+    loadTemplates();
+  }, [session.loading, canAccess, load, loadTemplates]);
+
+  function toggleTemplate(id: NotebookTemplateId) {
+    setSelectedTemplates((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function openFileManager(event: EventRow) {
+    setFileManagerEvent(event);
+    setFileManagerNotebooks([]);
+    setFileManagerError(null);
+    setFileManagerLoading(true);
+
+    const res = await fetch(`/api/admin/events/${event.slug}/seed-files`);
+    const data = await res.json().catch(() => ({}));
+    setFileManagerLoading(false);
+
+    if (!res.ok) {
+      setFileManagerError(data.error ?? "Could not load event files.");
+      return;
+    }
+
+    setFileManagerNotebooks(data.notebooks ?? []);
+  }
+
+  function closeFileManager() {
+    setFileManagerEvent(null);
+    setFileManagerNotebooks([]);
+    setFileManagerError(null);
+    load();
+  }
 
   async function createEvent(e: React.FormEvent) {
     e.preventDefault();
     setCreating(true);
     setCreateMessage(null);
+
+    if (selectedTemplates.size === 0) {
+      setCreateMessage("Select at least one notebook.");
+      return;
+    }
 
     const res = await fetch("/api/events", {
       method: "POST",
@@ -67,6 +163,7 @@ export default function AdminEventsPage() {
           .split(/[\n,]+/)
           .map((s) => s.trim())
           .filter(Boolean),
+        notebookTemplates: [...selectedTemplates],
       }),
     });
     const data = await res.json();
@@ -78,16 +175,54 @@ export default function AdminEventsPage() {
     }
 
     setCreateMessage(
-      `Created "${data.title}". Members added: ${(data.membersAdded ?? []).join(", ") || "none"}.` +
+      `Created "${data.title}" with ${(data.notebooks ?? []).join(", ") || "no notebooks"}.` +
+        (data.copiedFiles
+          ? ` Copied ${data.copiedFiles} document(s) from seed/.`
+          : "") +
+        ` Members added: ${(data.membersAdded ?? []).join(", ") || "none"}.` +
         (data.membersMissing?.length
           ? ` Missing users: ${data.membersMissing.join(", ")} — create them first via Users API or HAWKCHAT_EVENT_USERS.`
           : "") +
-        ` Next: add ${data.setupHint}`,
+        ` ${data.setupHint ?? ""}`,
     );
     setSlug("");
     setTitle("");
     setDescription("");
     setMemberEmails("");
+    load();
+  }
+
+  function openDeleteDialog(event: EventRow) {
+    setPendingDelete(event);
+    setDeleteConfirm("");
+    setDeleteError(null);
+  }
+
+  function closeDeleteDialog() {
+    if (deleting) return;
+    setPendingDelete(null);
+    setDeleteConfirm("");
+    setDeleteError(null);
+  }
+
+  async function confirmDelete() {
+    if (!pendingDelete || deleteConfirm !== "Delete") return;
+
+    setDeleting(true);
+    setDeleteError(null);
+
+    const res = await fetch(`/api/events/${pendingDelete.slug}`, {
+      method: "DELETE",
+    });
+    const data = await res.json().catch(() => ({}));
+    setDeleting(false);
+
+    if (!res.ok) {
+      setDeleteError(data.error ?? "Could not delete event.");
+      return;
+    }
+
+    closeDeleteDialog();
     load();
   }
 
@@ -156,6 +291,90 @@ export default function AdminEventsPage() {
                   className="hawk-input w-full px-3 py-2 text-sm"
                 />
               </div>
+              <fieldset className="space-y-3">
+                <legend className="mb-1 block text-sm font-medium text-hawk-200">
+                  Notebooks
+                </legend>
+                <p className="text-xs text-hawk-400">
+                  Choose notebooks for this event. Expand a folder to add or
+                  remove files in the shared library — they are copied when the
+                  event is created.
+                </p>
+                {templatesLoading ? (
+                  <p className="text-sm text-hawk-400">Loading templates…</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {templates.map((template) => {
+                      const selected = selectedTemplates.has(template.id);
+                      const expanded = expandedTemplate === template.id;
+                      return (
+                        <li
+                          key={template.id}
+                          className={`rounded-lg border p-3 ${
+                            selected
+                              ? "border-orange/40 bg-orange/5"
+                              : "border-hawk-600 bg-hawk-900/40"
+                          }`}
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <label className="flex cursor-pointer items-start gap-3">
+                              <input
+                                type="checkbox"
+                                checked={selected}
+                                onChange={() => toggleTemplate(template.id)}
+                                className="mt-1"
+                              />
+                              <span>
+                                <span className="block text-sm font-semibold text-hawk-50">
+                                  {template.pickerLabel}
+                                </span>
+                                <span className="mt-0.5 block text-xs text-hawk-400">
+                                  {template.description}
+                                </span>
+                                <span className="mt-1 block font-mono text-xs text-hawk-500">
+                                  {notebookTemplateHasSeedFiles(template.id) ? (
+                                    <>
+                                      {template.sourceDir}
+                                      {template.fileCount === 0
+                                        ? " — no PDFs yet"
+                                        : ` — ${template.fileCount} file(s)`}
+                                    </>
+                                  ) : (
+                                    "Quirk reporting only — no documents"
+                                  )}
+                                </span>
+                              </span>
+                            </label>
+                            {notebookTemplateHasSeedFiles(template.id) ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedTemplate(
+                                    expanded ? null : template.id,
+                                  )
+                                }
+                                className="hawk-btn-secondary px-3 py-1.5 text-xs"
+                              >
+                                {expanded ? "Hide explorer" : "Manage files"}
+                              </button>
+                            ) : null}
+                          </div>
+                          {expanded && notebookTemplateHasSeedFiles(template.id) && (
+                            <div className="mt-3">
+                              <SeedFileExplorer
+                                apiBase={`/api/admin/events/notebook-templates/${template.id}/files`}
+                                seedPath={template.sourceDir}
+                                compact
+                                onFilesChanged={loadTemplates}
+                              />
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </fieldset>
               <div>
                 <label className="mb-1 block text-sm text-hawk-200">
                   Member emails (comma or newline)
@@ -173,7 +392,7 @@ export default function AdminEventsPage() {
               )}
               <button
                 type="submit"
-                disabled={creating}
+                disabled={creating || selectedTemplates.size === 0}
                 className="hawk-btn-primary px-5 py-2 text-sm disabled:opacity-60"
               >
                 {creating ? "Creating…" : "Create event"}
@@ -206,12 +425,32 @@ export default function AdminEventsPage() {
                           {event.notebookCount ?? 0} notebook(s) in manifest
                         </p>
                       </div>
-                      <Link
-                        href={`/events/${event.slug}`}
-                        className="hawk-btn-secondary px-4 py-2 text-sm"
-                      >
-                        Open space
-                      </Link>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Link
+                          href={`/events/${event.slug}`}
+                          className="hawk-btn-secondary px-4 py-2 text-sm"
+                        >
+                          Open space
+                        </Link>
+                        {event.slug !== WORLD_CUP_EVENT_SLUG && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => openFileManager(event)}
+                              className="hawk-btn-secondary px-4 py-2 text-sm"
+                            >
+                              Manage files
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openDeleteDialog(event)}
+                              className="rounded-lg border border-orange/40 bg-orange/10 px-4 py-2 text-sm font-medium text-orange-light transition hover:border-orange/60 hover:bg-orange/15"
+                            >
+                              Delete event
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </li>
                 ))}
@@ -220,6 +459,130 @@ export default function AdminEventsPage() {
           </>
         )}
       </main>
+
+      {pendingDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-hawk-950/80 px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-event-title"
+        >
+          <div className="hawk-card w-full max-w-md p-6">
+            <h3
+              id="delete-event-title"
+              className="font-display text-lg font-bold text-hawk-50"
+            >
+              Delete event?
+            </h3>
+            <p className="mt-3 text-sm leading-relaxed text-hawk-300">
+              This removes{" "}
+              <span className="font-semibold text-hawk-100">
+                {pendingDelete.title}
+              </span>{" "}
+              (<span className="font-mono text-hawk-200">{pendingDelete.slug}</span>
+              ) from the staff portal. Member access and kit quirk reports for this
+              event are removed. Seed files under{" "}
+              <span className="font-mono text-hawk-200">
+                seed/events/{pendingDelete.slug}/
+              </span>{" "}
+              are not deleted and the event may reappear after a restart if still
+              present on disk.
+            </p>
+            <label className="mt-5 block text-sm text-hawk-200">
+              Type <span className="font-mono text-orange-light">Delete</span> to
+              confirm
+            </label>
+            <input
+              value={deleteConfirm}
+              onChange={(e) => setDeleteConfirm(e.target.value)}
+              autoComplete="off"
+              autoFocus
+              className="hawk-input mt-2 w-full px-3 py-2 text-sm"
+              placeholder="Delete"
+            />
+            {deleteError && (
+              <p className="mt-3 text-sm text-orange-light">{deleteError}</p>
+            )}
+            <div className="mt-6 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeDeleteDialog}
+                disabled={deleting}
+                className="hawk-btn-secondary px-4 py-2 text-sm disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                disabled={deleting || deleteConfirm !== "Delete"}
+                className="rounded-lg border border-orange/50 bg-orange/20 px-4 py-2 text-sm font-medium text-orange-light transition hover:bg-orange/30 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {deleting ? "Deleting…" : "Delete event"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {fileManagerEvent && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-hawk-950/80 px-4 py-8"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="file-manager-title"
+        >
+          <div className="hawk-card flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden">
+            <div className="border-b border-hawk-700 px-6 py-4">
+              <h3
+                id="file-manager-title"
+                className="font-display text-lg font-bold text-hawk-50"
+              >
+                Event files — {fileManagerEvent.title}
+              </h3>
+              <p className="mt-1 text-sm text-hawk-300">
+                Add or remove documents in each notebook folder. Uploads are
+                saved to seed and indexed for chat immediately.
+              </p>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              {fileManagerLoading ? (
+                <p className="text-hawk-400">Loading notebooks…</p>
+              ) : fileManagerError ? (
+                <p className="text-orange-light">{fileManagerError}</p>
+              ) : fileManagerNotebooks.length === 0 ? (
+                <p className="text-hawk-400">
+                  No notebook folders for this event yet. Create the event with
+                  notebook templates first.
+                </p>
+              ) : (
+                <ul className="space-y-4">
+                  {fileManagerNotebooks.map((notebook) => (
+                    <li key={notebook.notebookId}>
+                      <SeedFileExplorer
+                        apiBase={`/api/admin/events/${fileManagerEvent.slug}/notebooks/${notebook.notebookId}/files`}
+                        title={
+                          notebook.pickerLabel ?? notebook.notebookTitle
+                        }
+                        seedPath={notebook.seedPath}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div className="border-t border-hawk-700 px-6 py-4 text-right">
+              <button
+                type="button"
+                onClick={closeFileManager}
+                className="hawk-btn-secondary px-4 py-2 text-sm"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

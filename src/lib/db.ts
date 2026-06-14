@@ -194,6 +194,7 @@ function seedEventUsersFromEnv(database: Database.Database): void {
   if (!raw) return;
 
   const now = new Date().toISOString();
+  const byEmail = new Map<string, { token: string; slugs: Set<string> }>();
 
   for (const entry of raw.split(",")) {
     const part = entry.trim();
@@ -207,15 +208,22 @@ function seedEventUsersFromEnv(database: Database.Database): void {
     const token = part.slice(secondColon + 1).trim();
     if (!slug || !email || !token) continue;
 
-    const event = database
-      .prepare(`SELECT id FROM events WHERE slug = ?`)
-      .get(slug) as { id: string } | undefined;
-    if (!event) continue;
+    const existing = byEmail.get(email);
+    if (!existing) {
+      byEmail.set(email, { token, slugs: new Set([slug]) });
+    } else {
+      existing.token = token;
+      existing.slugs.add(slug);
+    }
+  }
 
-    const tokenHash = createHash("sha256").update(token).digest("hex");
+  for (const [email, spec] of byEmail) {
+    const tokenHash = createHash("sha256").update(spec.token).digest("hex");
     let user = database
-      .prepare(`SELECT id, token_hash FROM users WHERE email = ?`)
-      .get(email) as { id: string; token_hash: string } | undefined;
+      .prepare(`SELECT id, token_hash, role FROM users WHERE email = ?`)
+      .get(email) as
+      | { id: string; token_hash: string; role: string }
+      | undefined;
 
     if (!user) {
       const userId = uuidv4();
@@ -234,25 +242,52 @@ function seedEventUsersFromEnv(database: Database.Database): void {
            VALUES (?, ?, ?, 'viewer', ?, ?)`,
         )
         .run(userId, email, name || "User", tokenHash, now);
-      user = { id: userId, token_hash: tokenHash };
+      user = { id: userId, token_hash: tokenHash, role: "viewer" };
     } else if (user.token_hash !== tokenHash) {
       database
         .prepare(`UPDATE users SET token_hash = ? WHERE id = ?`)
         .run(tokenHash, user.id);
     }
 
-    const member = database
-      .prepare(
-        `SELECT 1 FROM event_members WHERE event_id = ? AND user_id = ?`,
-      )
-      .get(event.id, user.id);
-    if (!member) {
-      database
+    const eventIds: string[] = [];
+    for (const slug of spec.slugs) {
+      const event = database
+        .prepare(`SELECT id FROM events WHERE slug = ?`)
+        .get(slug) as { id: string } | undefined;
+      if (!event) continue;
+      eventIds.push(event.id);
+
+      const member = database
         .prepare(
-          `INSERT INTO event_members (event_id, user_id, created_at) VALUES (?, ?, ?)`,
+          `SELECT 1 FROM event_members WHERE event_id = ? AND user_id = ?`,
         )
-        .run(event.id, user.id, now);
+        .get(event.id, user.id);
+      if (!member) {
+        database
+          .prepare(
+            `INSERT INTO event_members (event_id, user_id, created_at) VALUES (?, ?, ?)`,
+          )
+          .run(event.id, user.id, now);
+      }
     }
+
+    if (user.role !== "viewer") continue;
+
+    if (eventIds.length === 0) {
+      database
+        .prepare(`DELETE FROM event_members WHERE user_id = ?`)
+        .run(user.id);
+      continue;
+    }
+
+    const placeholders = eventIds.map(() => "?").join(", ");
+    database
+      .prepare(
+        `DELETE FROM event_members
+         WHERE user_id = ?
+           AND event_id NOT IN (${placeholders})`,
+      )
+      .run(user.id, ...eventIds);
   }
 }
 

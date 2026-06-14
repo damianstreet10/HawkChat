@@ -19,10 +19,18 @@ export function getEventManifestNotebooks(slug: string): SeedNotebook[] {
 export function sortEventsForPicker<
   T extends { slug: string; title: string },
 >(events: T[]): T[] {
-  const order = [WORLD_CUP_EVENT_SLUG, "champions-league"];
+  const priority = [
+    WORLD_CUP_EVENT_SLUG,
+    "champions-league",
+    "test-event-1",
+    "test-event-2",
+  ];
   return [...events].sort((a, b) => {
-    const ai = order.indexOf(a.slug);
-    const bi = order.indexOf(b.slug);
-    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+    const ai = priority.indexOf(a.slug);
+    const bi = priority.indexOf(b.slug);
+    if (ai !== -1 || bi !== -1) {
+      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+    }
+    return a.title.localeCompare(b.title);
   });
 }

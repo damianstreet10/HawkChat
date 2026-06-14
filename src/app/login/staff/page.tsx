@@ -46,8 +46,9 @@ function StaffLoginForm() {
               Staff sign in
             </h1>
             <p className="text-xs text-hawk-300">
-              Admin / monitor — use your <strong className="text-hawk-200">access token</strong>
-              , not the shared site password
+              Admin, monitor, or tournament access — use your{" "}
+              <strong className="text-hawk-200">access token</strong>, not the
+              shared site password
             </p>
           </div>
         </div>
