@@ -9,12 +9,12 @@ export function notebookCardDescription(
     return "Submit kit & PC quirks for admin review";
   }
 
-  if (documents.length > 0) {
-    return `Includes: ${documents.join(", ")}`;
-  }
-
   if (manifestDescription?.trim()) {
     return manifestDescription.trim();
+  }
+
+  if (documents.length > 0) {
+    return `${documents.length} document${documents.length === 1 ? "" : "s"} ready for questions`;
   }
 
   if (sourceCount > 0) {

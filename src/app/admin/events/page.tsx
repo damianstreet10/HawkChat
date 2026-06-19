@@ -189,6 +189,7 @@ export default function AdminEventsPage() {
     setTitle("");
     setDescription("");
     setMemberEmails("");
+    setSelectedTemplates(new Set(NOTEBOOK_TEMPLATE_IDS));
     load();
   }
 

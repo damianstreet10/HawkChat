@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireAdmin } from "@/lib/auth";
+import { readSeedManifest } from "@/lib/seed-manifest";
 import {
   isNotebookTemplateId,
   NOTEBOOK_TEMPLATE_LABELS,
@@ -8,11 +9,30 @@ import {
 import {
   deleteSeedFile,
   listFilesInSeedDir,
+  resolveSeedDir,
   seedRelativePath,
   writeSeedFile,
 } from "@/lib/seed-files";
+import {
+  removeSourcesByName,
+  reindexSeedFileAtPath,
+  syncNotebookFromSeedDir,
+} from "@/lib/seed-sync";
+import path from "path";
 
 type Params = { params: { templateId: string } };
+
+function manifestEntryForTemplate(templateId: string) {
+  return readSeedManifest()?.find((entry) => entry.notebookId === templateId);
+}
+
+async function syncTemplateNotebook(templateId: string) {
+  const entry = manifestEntryForTemplate(templateId);
+  if (!entry) return;
+  await syncNotebookFromSeedDir(entry.notebookId, entry.documentsDir, {
+    label: entry.notebookTitle,
+  });
+}
 
 export async function GET(request: Request, { params }: Params) {
   try {
@@ -33,6 +53,8 @@ export async function GET(request: Request, { params }: Params) {
       { status: 400 },
     );
   }
+
+  await syncTemplateNotebook(params.templateId);
 
   return NextResponse.json({
     templateId: params.templateId,
@@ -71,6 +93,14 @@ export async function POST(request: Request, { params }: Params) {
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
     const filename = writeSeedFile(params.templateId, file.name, buffer);
+    const entry = manifestEntryForTemplate(params.templateId);
+    if (entry) {
+      await reindexSeedFileAtPath(
+        entry.notebookId,
+        path.join(resolveSeedDir(params.templateId), filename),
+        filename,
+      );
+    }
     return NextResponse.json({
       ok: true,
       filename,
@@ -111,6 +141,10 @@ export async function DELETE(request: Request, { params }: Params) {
 
   try {
     deleteSeedFile(params.templateId, name);
+    const entry = manifestEntryForTemplate(params.templateId);
+    if (entry) {
+      removeSourcesByName(entry.notebookId, name);
+    }
     return NextResponse.json({
       ok: true,
       files: listFilesInSeedDir(params.templateId),

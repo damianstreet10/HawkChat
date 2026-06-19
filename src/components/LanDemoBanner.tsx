@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { notebookCardDescription } from "@/lib/notebook-description";
+import { NotebookDocumentList } from "@/components/NotebookDocumentList";
 import { isNotebookDisabled } from "@/lib/disabled-notebooks";
 
 const ENV_LAN_URL = process.env.NEXT_PUBLIC_HAWKCHAT_LAN_URL ?? "";
@@ -124,6 +125,10 @@ export function LanDemoBanner({
                     </span>
                   )}
                 </p>
+                <NotebookDocumentList
+                  documents={nb.documents ?? []}
+                  compact
+                />
               </>
             );
 

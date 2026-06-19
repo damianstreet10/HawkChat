@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { NotebookDocumentList } from "@/components/NotebookDocumentList";
 import { notebookCardDescription } from "@/lib/notebook-description";
 import { isNotebookDisabled } from "@/lib/disabled-notebooks";
 
@@ -96,6 +97,10 @@ export function EventHome({
                     </span>
                   )}
                 </p>
+                <NotebookDocumentList
+                  documents={nb.documents ?? []}
+                  compact
+                />
               </>
             );
 
