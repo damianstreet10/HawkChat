@@ -1,3 +1,8 @@
+/**
+ * Edge gate for site password + staff session cookies.
+ * Debug unexpected redirects to `/login` or `/login/staff`, blocked `/admin`
+ * or `/events` routes, or public-path allowlist gaps — cookie: `hawkchat_session`.
+ */
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import {
@@ -60,7 +65,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Tournament / event spaces — staff sign-in (event members use access tokens)
+  // Tournament / event spaces — email sign-in required
   if (eventPageRoute) {
     const session = request.cookies.get(SESSION_COOKIE)?.value;
     if (!session) {

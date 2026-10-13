@@ -1,3 +1,7 @@
+/**
+ * Compact list of document filenames on notebook cards.
+ * Debug missing docs on cards — presentational only; parent supplies `documents`.
+ */
 export function NotebookDocumentList({
   documents,
   compact = false,

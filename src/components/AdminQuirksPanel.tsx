@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * Kit quirks admin: filters, stats, category overview, report list.
+ * Debug event-scoped vs global quirks, category filters, or polling/stats —
+ * used by `/admin/quirks` and `/events/[slug]/quirks`.
+ */
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState, Suspense } from "react";

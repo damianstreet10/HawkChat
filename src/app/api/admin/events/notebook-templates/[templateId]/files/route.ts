@@ -1,3 +1,10 @@
+/**
+ * GET /api/admin/events/notebook-templates/[templateId]/files — list template seed files.
+ * POST — upload a seed file into the shared template folder.
+ * DELETE — remove a template seed file (and re-sync notebooks).
+ * Callers: global template file admin. Debug unknown templateId, templates
+ * without seed dirs, or syncNotebookFromSeedDir after write/delete.
+ */
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireAdmin } from "@/lib/auth";
 import { readSeedManifest } from "@/lib/seed-manifest";
@@ -34,6 +41,7 @@ async function syncTemplateNotebook(templateId: string) {
   });
 }
 
+/** Admin: list files in the shared seed folder for a notebook template. */
 export async function GET(request: Request, { params }: Params) {
   try {
     requireAdmin(request);
@@ -64,6 +72,7 @@ export async function GET(request: Request, { params }: Params) {
   });
 }
 
+/** Admin: upload a file into the template seed dir and reindex. */
 export async function POST(request: Request, { params }: Params) {
   try {
     requireAdmin(request);
@@ -114,6 +123,7 @@ export async function POST(request: Request, { params }: Params) {
   }
 }
 
+/** Admin: delete a template seed file and re-sync the template notebook. */
 export async function DELETE(request: Request, { params }: Params) {
   try {
     requireAdmin(request);

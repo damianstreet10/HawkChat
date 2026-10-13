@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * Single project/event home (`/events/[slug]`).
+ * Debug missing event payload, notebook list, or chatOpen/timeStatus — loads
+ * `/api/events/[slug]` then renders `EventShell` + `EventHome`.
+ */
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { EventHome } from "@/components/EventHome";
@@ -10,6 +15,9 @@ type EventPayload = {
   slug: string;
   title: string;
   manifestDescription?: string | null;
+  timeStatus?: "active" | "upcoming" | "past";
+  chatOpen?: boolean;
+  dateRangeLabel?: string | null;
 };
 
 type NotebookRow = {
@@ -35,13 +43,13 @@ export default function EventPage() {
     try {
       const eventRes = await fetch(`/api/events/${slug}`);
       if (eventRes.status === 401) {
-        throw new Error("Sign in with your event access token at Staff sign in.");
+        throw new Error("Sign in with your email to open this project.");
       }
       if (eventRes.status === 403) {
-        throw new Error("You are not a member of this tournament.");
+        throw new Error("You are not a member of this project.");
       }
       if (!eventRes.ok) {
-        throw new Error("Could not load this tournament.");
+        throw new Error("Could not load this project.");
       }
       const eventData = await eventRes.json();
       setEvent({
@@ -49,11 +57,14 @@ export default function EventPage() {
         title: eventData.title,
         manifestDescription:
           eventData.manifestDescription ?? eventData.description,
+        timeStatus: eventData.timeStatus,
+        chatOpen: eventData.chatOpen,
+        dateRangeLabel: eventData.dateRangeLabel,
       });
 
       const nbRes = await fetch(`/api/events/${slug}/notebooks`);
       if (!nbRes.ok) {
-        throw new Error("Could not load tournament notebooks.");
+        throw new Error("Could not load project notebooks.");
       }
       const nbData = await nbRes.json();
       setNotebooks(Array.isArray(nbData) ? nbData : []);
@@ -61,7 +72,7 @@ export default function EventPage() {
       setEvent(null);
       setNotebooks([]);
       setLoadError(
-        err instanceof Error ? err.message : "Could not load tournament.",
+        err instanceof Error ? err.message : "Could not load project.",
       );
     } finally {
       setLoading(false);
@@ -89,10 +100,10 @@ export default function EventPage() {
             onRetry={load}
           />
         ) : loading ? (
-          <p className="text-hawk-400">Loading tournament…</p>
+          <p className="text-hawk-400">Loading project…</p>
         ) : (
           <div className="hawk-card-muted max-w-md p-8 text-center">
-            <p className="text-hawk-200">{loadError ?? "Tournament not found."}</p>
+            <p className="text-hawk-200">{loadError ?? "Project not found."}</p>
           </div>
         )}
       </main>

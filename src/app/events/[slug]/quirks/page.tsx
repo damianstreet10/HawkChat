@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * Per-event kit-quirks admin page.
+ * Debug slug/title wiring into `AdminQuirksPanel` — fetches event title then
+ * scopes quirk stats/list to this event.
+ */
 import { useParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { AdminQuirksPanel } from "@/components/AdminQuirksPanel";

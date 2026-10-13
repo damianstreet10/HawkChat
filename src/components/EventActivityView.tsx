@@ -1,5 +1,9 @@
 "use client";
 
+/**
+ * Chat Q&A activity feed with optional feedback labels (polls periodically).
+ * Debug empty exchanges, feedback display, or event vs global activity API.
+ */
 import { useCallback, useEffect, useState } from "react";
 import {
   MESSAGE_FEEDBACK_LABELS,

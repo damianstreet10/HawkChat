@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * Chat thread UI: history, streaming ask, citations, thumbs feedback.
+ * Debug message load/send, disabled chat banner, or feedback POST failures —
+ * notebook-scoped via `/api/notebooks/[id]/messages` (and related).
+ */
 import ReactMarkdown from "react-markdown";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CitationList } from "./CitationList";
@@ -99,7 +104,15 @@ const SUGGESTIONS = [
 
 const LAN_DEMO = process.env.NEXT_PUBLIC_HAWKCHAT_LAN_DEMO === "true";
 
-export function ChatPanel({ notebookId }: { notebookId: string }) {
+export function ChatPanel({
+  notebookId,
+  chatDisabled = false,
+  chatDisabledReason,
+}: {
+  notebookId: string;
+  chatDisabled?: boolean;
+  chatDisabledReason?: string | null;
+}) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -131,7 +144,7 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
 
   async function send(text: string) {
     const trimmed = text.trim();
-    if (!trimmed || sending) return;
+    if (!trimmed || sending || chatDisabled) return;
 
     setSending(true);
     setInput("");
@@ -212,8 +225,8 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
                 <button
                   key={s}
                   onClick={() => send(s)}
-                  disabled={sending}
-                  className="hawk-btn-secondary px-4 py-2 text-sm"
+                  disabled={sending || chatDisabled}
+                  className="hawk-btn-secondary px-4 py-2 text-sm disabled:opacity-50"
                 >
                   {s}
                 </button>
@@ -272,17 +285,27 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
           send(input);
         }}
       >
+        {chatDisabled && (
+          <p className="mx-auto mb-3 max-w-2xl rounded-lg border border-hawk-600 bg-hawk-900/80 px-4 py-3 text-sm text-hawk-200">
+            {chatDisabledReason ??
+              "This project is not active. You can browse notebooks but cannot ask new questions."}
+          </p>
+        )}
         <div className="mx-auto flex max-w-2xl gap-2">
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask a question about your sources…"
-            disabled={sending}
-            className="hawk-input flex-1 rounded-xl px-4 py-3 text-[15px]"
+            placeholder={
+              chatDisabled
+                ? "Questions are closed for this project"
+                : "Ask a question about your sources…"
+            }
+            disabled={sending || chatDisabled}
+            className="hawk-input flex-1 rounded-xl px-4 py-3 text-[15px] disabled:opacity-60"
           />
           <button
             type="submit"
-            disabled={sending || !input.trim()}
+            disabled={sending || chatDisabled || !input.trim()}
             className="hawk-btn-primary rounded-xl px-5 py-3 text-sm disabled:opacity-50"
           >
             Send

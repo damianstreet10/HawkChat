@@ -1,3 +1,8 @@
+/**
+ * GET /api/client/session — ensure a guest clientSessionId cookie exists.
+ * Callers: chat/quirks clients before messaging. Debug here if chat history
+ * mixes across users on the same device or guestLabel is missing.
+ */
 import { NextResponse } from "next/server";
 import {
   clientSessionCookieOptions,
@@ -6,7 +11,7 @@ import {
 } from "@/lib/client-session";
 import { readGuestLabelFromCookie } from "@/lib/site-gate";
 
-/** Ensure each browser gets a private guest session id (for scoped chat history). */
+/** Mint or return existing client session id (+ guest label) for scoped history. */
 export async function GET(request: Request) {
   const cookieHeader = request.headers.get("cookie");
   let sessionId = getClientSessionIdFromRequest(request);

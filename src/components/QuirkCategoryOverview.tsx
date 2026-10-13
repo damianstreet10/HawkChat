@@ -1,5 +1,9 @@
 "use client";
 
+/**
+ * Quirk stats breakdown (counts + percentages by category).
+ * Debug empty/zero stats charts when admin quirks overview looks wrong.
+ */
 import {
   QUIRK_CATEGORIES,
   QUIRK_CATEGORY_LABELS,

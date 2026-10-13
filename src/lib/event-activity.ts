@@ -1,8 +1,14 @@
+/**
+ * Staff activity feed: Q&A exchanges scoped to an event or LAN demo notebooks.
+ * Look here when activity is empty for an event, or World Cup shows LAN-demo
+ * notebook traffic instead of seed/events notebooks.
+ */
 import type Database from "better-sqlite3";
 import { getEventNotebookIds } from "./events";
 import { getLanDemoNotebookIds } from "./lan-demo-scope";
 import { isWorldCupEvent } from "./world-cup-event";
 
+/** Recent user/assistant message pairs, optionally filtered by notebook scope. */
 export function listEventExchanges(
   db: Database.Database,
   limit: number,

@@ -1,3 +1,10 @@
+/**
+ * PATCH /api/users/[id] — admin updates name/role (super-admin for admin roles).
+ * DELETE — super-admin removes a user entirely.
+ * POST — admin rotates access token (action: rotate-token).
+ * Callers: Admin → Members. Debug demotion/delete guards for super-admins,
+ * session wipe on role change, or rotate-token action mismatch.
+ */
 import { NextResponse } from "next/server";
 import {
   authErrorResponse,
@@ -6,15 +13,27 @@ import {
   requireAdmin,
 } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import type { Role } from "@/lib/permissions";
+import { ROLE_LABELS, type Role } from "@/lib/permissions";
+import { canManageAdminRoles, getSuperAdminEmails } from "@/lib/super-admin";
 
 type Params = { params: { id: string } };
 
+/** Admin: update name and/or role; clears sessions on role change. */
 export async function PATCH(request: Request, { params }: Params) {
   try {
     const admin = requireAdmin(request);
     const body = await request.json().catch(() => ({}));
     const db = getDb();
+
+    const target = db
+      .prepare(`SELECT id, email, name, role FROM users WHERE id = ?`)
+      .get(params.id) as
+      | { id: string; email: string; name: string; role: Role }
+      | undefined;
+
+    if (!target) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
 
     const updates: string[] = [];
     const values: unknown[] = [];
@@ -28,8 +47,34 @@ export async function PATCH(request: Request, { params }: Params) {
       ["viewer", "contributor", "admin", "monitor"].includes(body.role) &&
       params.id !== admin.id
     ) {
+      const nextRole = body.role as Role;
+      const changingAdminPrivilege =
+        target.role === "admin" || nextRole === "admin";
+
+      if (changingAdminPrivilege && !canManageAdminRoles(admin)) {
+        return NextResponse.json(
+          {
+            error:
+              "Only a super admin can grant or remove admin privileges",
+          },
+          { status: 403 },
+        );
+      }
+
+      const owners = getSuperAdminEmails();
+      if (
+        target.role === "admin" &&
+        nextRole !== "admin" &&
+        owners.includes(target.email.toLowerCase())
+      ) {
+        return NextResponse.json(
+          { error: "A super admin account cannot be demoted" },
+          { status: 400 },
+        );
+      }
+
       updates.push("role = ?");
-      values.push(body.role as Role);
+      values.push(nextRole);
     }
 
     if (updates.length === 0) {
@@ -37,19 +82,29 @@ export async function PATCH(request: Request, { params }: Params) {
     }
 
     values.push(params.id);
-    const result = db
-      .prepare(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`)
-      .run(...values);
+    db.prepare(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`).run(
+      ...values,
+    );
 
-    if (result.changes === 0) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    // Role change should force re-login for permissions refresh.
+    if (updates.some((u) => u.startsWith("role"))) {
+      db.prepare(`DELETE FROM sessions WHERE user_id = ?`).run(params.id);
     }
 
     const user = db
       .prepare(`SELECT id, email, name, role, created_at FROM users WHERE id = ?`)
-      .get(params.id);
+      .get(params.id) as {
+      id: string;
+      email: string;
+      name: string;
+      role: Role;
+      created_at: string;
+    };
 
-    return NextResponse.json(user);
+    return NextResponse.json({
+      ...user,
+      roleLabel: ROLE_LABELS[user.role],
+    });
   } catch (err) {
     const res = authErrorResponse(err);
     if (res) return res;
@@ -57,9 +112,20 @@ export async function PATCH(request: Request, { params }: Params) {
   }
 }
 
+/** Super-admin only: delete user, memberships, and sessions. */
 export async function DELETE(request: Request, { params }: Params) {
   try {
     const admin = requireAdmin(request);
+    if (!canManageAdminRoles(admin)) {
+      return NextResponse.json(
+        {
+          error:
+            "Only a super admin can remove people entirely from HawkChat",
+        },
+        { status: 403 },
+      );
+    }
+
     if (params.id === admin.id) {
       return NextResponse.json(
         { error: "You cannot delete your own account" },
@@ -68,7 +134,26 @@ export async function DELETE(request: Request, { params }: Params) {
     }
 
     const db = getDb();
+    const target = db
+      .prepare(`SELECT id, email, role FROM users WHERE id = ?`)
+      .get(params.id) as
+      | { id: string; email: string; role: string }
+      | undefined;
+
+    if (!target) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    const owners = getSuperAdminEmails();
+    if (owners.includes(target.email.toLowerCase())) {
+      return NextResponse.json(
+        { error: "A super admin account cannot be deleted" },
+        { status: 400 },
+      );
+    }
+
     const tx = db.transaction(() => {
+      db.prepare(`DELETE FROM event_members WHERE user_id = ?`).run(params.id);
       db.prepare(`DELETE FROM sessions WHERE user_id = ?`).run(params.id);
       db.prepare(`DELETE FROM users WHERE id = ?`).run(params.id);
     });
@@ -82,6 +167,7 @@ export async function DELETE(request: Request, { params }: Params) {
   }
 }
 
+/** Admin: rotate access token (body.action === "rotate-token") and wipe sessions. */
 export async function POST(request: Request, { params }: Params) {
   try {
     requireAdmin(request);

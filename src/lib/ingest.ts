@@ -1,8 +1,14 @@
+/**
+ * Chunk + embed document text into sources/chunks rows for RAG.
+ * Look here when uploads fail with "No readable text", or chunk counts look off
+ * after a successful parse.
+ */
 import { v4 as uuidv4 } from "uuid";
 import { getDb } from "./db";
 import { chunkText } from "./chunking";
 import { embedTexts } from "./embeddings";
 
+/** Insert source + embedded chunks; returns source id and chunk count. */
 export async function ingestSource(
   notebookId: string,
   name: string,

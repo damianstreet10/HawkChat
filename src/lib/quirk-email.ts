@@ -1,3 +1,8 @@
+/**
+ * Email the quirk reporter when a report is marked resolved (SMTP).
+ * Look here when resolve notifications fail — check quirk-email-smtp env and
+ * isQuirkEmailConfigured before assuming the send path is broken.
+ */
 import type { AuthUser } from "./auth";
 import { sendMailViaSmtp, isQuirkEmailConfigured, smtpConfig } from "./quirk-email-smtp";
 
@@ -15,6 +20,7 @@ export type QuirkReportForEmail = {
   created_at: string;
 };
 
+/** SMTP email to the reporter when status becomes resolved. */
 export async function sendQuirkResolvedEmail(
   admin: AuthUser,
   report: QuirkReportForEmail,

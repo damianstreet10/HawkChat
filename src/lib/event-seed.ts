@@ -1,3 +1,8 @@
+/**
+ * Ensure event notebooks exist in SQLite and sync their seed documents (deduped per slug).
+ * Look here when event notebooks are empty/missing after open, or World Cup falls
+ * back to the main LAN auto-seed path instead of seed/events/*.
+ */
 import path from "path";
 import { getDb } from "./db";
 import { readEventManifest } from "./event-manifest";
@@ -8,6 +13,7 @@ import { listSeedFilesOnDisk, syncNotebookFromSeedDir } from "./seed-sync";
 
 const seedingByEvent = new Map<string, Promise<void>>();
 
+/** Insert or rename a notebook row from a manifest entry. */
 function ensureNotebook(entry: SeedNotebook): void {
   const db = getDb();
   const nb = db
@@ -55,6 +61,7 @@ async function seedNotebook(entry: SeedNotebook): Promise<void> {
   });
 }
 
+/** Ensure SQLite notebook rows exist for each entry in the event manifest. */
 export function ensureEventNotebooks(eventSlug: string): void {
   const manifest = readEventManifest(eventSlug);
   if (!manifest?.notebooks.length) return;
@@ -64,6 +71,10 @@ export function ensureEventNotebooks(eventSlug: string): void {
   }
 }
 
+/**
+ * Sync seed documents for an event (World Cup uses LAN auto-seed;
+ * others require HAWKCHAT_AUTO_SEED=true). Dedupes concurrent calls per slug.
+ */
 export function ensureEventDocuments(eventSlug: string): Promise<void> {
   if (isWorldCupEvent(eventSlug)) {
     return ensureBuiltinDocuments();

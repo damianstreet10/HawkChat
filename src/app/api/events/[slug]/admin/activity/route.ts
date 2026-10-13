@@ -1,3 +1,8 @@
+/**
+ * GET /api/events/[slug]/admin/activity — chat exchanges for this event (monitor+).
+ * Callers: event Activity page. Debug requireEventMonitor / eventAdminError,
+ * or empty results when chats lack matching event_slug.
+ */
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { listEventExchanges } from "@/lib/event-activity";
@@ -5,6 +10,7 @@ import { eventAdminError, requireEventMonitor } from "@/lib/event-admin-api";
 
 type Params = { params: { slug: string } };
 
+/** Event monitor+: exchanges filtered to this event (?limit). */
 export async function GET(request: Request, { params }: Params) {
   try {
     requireEventMonitor(request, params.slug);

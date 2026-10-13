@@ -1,3 +1,8 @@
+/**
+ * Official Hawk-Eye brand mark / wordmark (hawkeyeinnovations.com assets).
+ * Debug missing logo or wrong variant — mark is inlined; wordmark uses a plain img.
+ * Height via `size`; not auth-related.
+ */
 type HawkLogoProps = {
   /** Height in pixels; width follows official aspect ratios */
   size?: number;
@@ -6,10 +11,6 @@ type HawkLogoProps = {
   className?: string;
 };
 
-/**
- * Official Hawk-Eye Innovations brand assets (from hawkeyeinnovations.com).
- * Mark is inlined so it never fails to load; wordmark uses a plain img (not next/image).
- */
 export function HawkLogo({
   size = 40,
   variant = "mark",

@@ -1,54 +1,44 @@
+/**
+ * POST /api/auth/login — email + password sign-in (session cookie).
+ * Callers: /login/staff. Debug wrong password, missing password_hash (legacy claim),
+ * or session cookie / site-gate side effects.
+ */
 import { NextResponse } from "next/server";
 import {
+  authenticateWithPassword,
   authErrorResponse,
   createSession,
-  hashToken,
   sessionCookieOptions,
 } from "@/lib/auth";
-import { getDb } from "@/lib/db";
 import { loginRedirectForUser } from "@/lib/events";
 import {
   grantSiteAccessCookieOptions,
   isSiteGateEnabled,
 } from "@/lib/site-gate";
 
+/** Staff/member login by email + password. */
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
     const email =
       typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-    const token =
-      typeof body.token === "string" ? body.token.trim() : "";
+    const password =
+      typeof body.password === "string" ? body.password : "";
 
-    if (!email || !token) {
+    if (!email || !email.includes("@")) {
       return NextResponse.json(
-        { error: "Email and access token required" },
+        { error: "Email required" },
+        { status: 400 },
+      );
+    }
+    if (!password) {
+      return NextResponse.json(
+        { error: "Password required" },
         { status: 400 },
       );
     }
 
-    const db = getDb();
-    const user = db
-      .prepare(
-        `SELECT id, email, name, role, token_hash FROM users WHERE email = ?`,
-      )
-      .get(email) as
-      | {
-          id: string;
-          email: string;
-          name: string;
-          role: string;
-          token_hash: string;
-        }
-      | undefined;
-
-    if (!user || user.token_hash !== hashToken(token)) {
-      return NextResponse.json(
-        { error: "Invalid email or access token" },
-        { status: 401 },
-      );
-    }
-
+    const user = authenticateWithPassword(email, password);
     const sessionId = createSession(user.id);
     const redirectTo = loginRedirectForUser(user.id, user.role);
     const response = NextResponse.json({

@@ -1,3 +1,8 @@
+/**
+ * PATCH /api/admin/quirks/[id] — update LAN quirk status/category/resolution.
+ * Callers: global quirks admin detail. Debug resolved-email send, status
+ * transitions, or report-not-found when id is from another event scope.
+ */
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireMonitor } from "@/lib/auth";
 import { getDb } from "@/lib/db";
@@ -26,6 +31,7 @@ type ExistingReport = {
   resolved_by: string | null;
 };
 
+/** Monitor+: patch status/category/resolutionNotes; may email on resolve. */
 export async function PATCH(request: Request, { params }: Params) {
   let admin;
   try {

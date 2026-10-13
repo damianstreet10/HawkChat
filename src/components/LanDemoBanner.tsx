@@ -1,5 +1,9 @@
 "use client";
 
+/**
+ * LAN demo banner: shareable URL + ordered seed notebook cards.
+ * Debug LAN URL fetch (`/api/lan-url`) or demo notebook ordering/visibility.
+ */
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { notebookCardDescription } from "@/lib/notebook-description";

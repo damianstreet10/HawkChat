@@ -1,3 +1,7 @@
+/**
+ * Thumbs-up/down values stored on assistant messages.
+ * Look here when feedback API rejects a value or UI labels don't match DB.
+ */
 export const MESSAGE_FEEDBACK_VALUES = ["helpful", "not_helpful"] as const;
 
 export type MessageFeedback = (typeof MESSAGE_FEEDBACK_VALUES)[number];

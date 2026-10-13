@@ -1,3 +1,7 @@
+/**
+ * Admin helpers: write/delete/list seed files and trigger reindex for a notebook.
+ * Look here when uploading a seed file succeeds on disk but chat still misses it.
+ */
 import path from "path";
 import {
   reindexSeedFileAtPath,
@@ -10,6 +14,7 @@ import {
   writeSeedFile,
 } from "./seed-files";
 
+/** Reindex one file already under the notebook's seed documents dir. */
 export async function indexNotebookSeedFile(
   notebookId: string,
   relativeDocumentsDir: string,
@@ -20,6 +25,7 @@ export async function indexNotebookSeedFile(
   return { chunkCount: 0 };
 }
 
+/** Write buffer to the seed dir, then reindex that file into the notebook. */
 export async function uploadAndIndexNotebookFile(
   notebookId: string,
   relativeDocumentsDir: string,
@@ -31,6 +37,7 @@ export async function uploadAndIndexNotebookFile(
   return { filename: safeName, chunkCount: 0 };
 }
 
+/** Delete a seed file and remove its indexed sources/chunks. */
 export function deleteNotebookSeedFile(
   notebookId: string,
   relativeDocumentsDir: string,

@@ -1,5 +1,9 @@
 "use client";
 
+/**
+ * Event sub-nav tabs: notebooks / activity / quirks.
+ * Debug tab visibility (activity/quirks permission gates) or wrong active tab.
+ */
 import Link from "next/link";
 import { StaffPortalHeader } from "./StaffPortalHeader";
 import { useSession } from "@/hooks/useSession";

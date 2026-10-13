@@ -1,3 +1,8 @@
+/**
+ * PATCH /api/events/[slug]/admin/quirks/[id] — update a quirk in this event.
+ * Callers: event Quirks admin detail. Debug event_slug mismatch (report not
+ * in this event), resolve email, or requireEventMonitor auth errors.
+ */
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { eventAdminError, requireEventMonitor } from "@/lib/event-admin-api";
@@ -28,6 +33,7 @@ type ExistingReport = {
   event_slug: string | null;
 };
 
+/** Event monitor+: patch status/category/resolutionNotes for a report in-scope. */
 export async function PATCH(request: Request, { params }: Params) {
   let admin;
   try {

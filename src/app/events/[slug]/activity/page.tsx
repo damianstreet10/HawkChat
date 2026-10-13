@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * Per-event chat activity / feedback page.
+ * Debug activity access (`canViewActivity`) or wrong event title in the shell —
+ * list UI is `EventActivityView` with this slug.
+ */
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";

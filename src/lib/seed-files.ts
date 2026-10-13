@@ -1,3 +1,7 @@
+/**
+ * Safe path helpers for files under the seed/ tree (sanitize, list, write, delete).
+ * Look here when seed uploads reject filenames or resolveSeedDir points outside seed/.
+ */
 import fs from "fs";
 import path from "path";
 
@@ -5,6 +9,7 @@ export const SEED_DOC_EXTENSIONS = new Set(["pdf", "txt", "md", "markdown"]);
 
 const SEED_ROOT = path.join(process.cwd(), "seed");
 
+/** Allowed seed doc name (no dotfiles/README; pdf/txt/md only). */
 export function isSeedDocumentName(filename: string): boolean {
   const lower = filename.toLowerCase();
   if (lower.startsWith(".") || lower.includes("readme")) return false;

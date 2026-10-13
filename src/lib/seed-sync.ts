@@ -1,3 +1,8 @@
+/**
+ * Sync seed folder PDFs/txt/md into SQLite sources+chunks (add/update/remove).
+ * Look here when documents on disk don't appear in chat, or reindex leaves
+ * stale chunks — compare listSeedFilesOnDisk vs sources by name.
+ */
 import fs from "fs";
 import path from "path";
 import type Database from "better-sqlite3";
@@ -14,6 +19,7 @@ export type SeedSyncResult = {
   updated: string[];
 };
 
+/** List supported seed docs in a directory (creates dir if missing). */
 export function listSeedFilesOnDisk(docsDir: string): string[] {
   if (!fs.existsSync(docsDir)) {
     fs.mkdirSync(docsDir, { recursive: true });
@@ -27,6 +33,7 @@ export function listSeedFilesOnDisk(docsDir: string): string[] {
   });
 }
 
+/** Source names already indexed for a notebook (from SQLite). */
 export function indexedSourceNames(
   db: Database.Database,
   notebookId: string,
@@ -42,6 +49,7 @@ export function indexedSourceNames(
   return new Set(rows.map((row) => row.name));
 }
 
+/** Delete sources (and chunks) matching a filename in a notebook. */
 export function removeSourcesByName(notebookId: string, name: string): void {
   const db = getDb();
   const sources = db
@@ -93,6 +101,8 @@ async function indexSeedFile(
   const result = await ingestSource(notebookId, filename, mime, text);
   console.log(`[HawkChat]   ${filename} → ${result.chunkCount} chunks`);
 }
+
+// --- Sync ---
 
 /** Keep the notebook index aligned with files on disk. */
 export async function syncNotebookFromSeedDir(
@@ -153,6 +163,7 @@ export async function syncNotebookFromSeedDir(
   return { added, removed, updated };
 }
 
+/** Force re-ingest of one seed file path into the notebook. */
 export async function reindexSeedFileAtPath(
   notebookId: string,
   filePath: string,

@@ -1,5 +1,9 @@
 "use client";
 
+/**
+ * Notebook sources sidebar: list, upload, paste text, delete.
+ * Debug upload permission (`canUpload`) or source CRUD for a notebookId.
+ */
 import { useCallback, useEffect, useState } from "react";
 import { useSession } from "@/hooks/useSession";
 

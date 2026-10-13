@@ -1,3 +1,7 @@
+/**
+ * Renders normalized citation excerpts under an assistant message.
+ * Debug missing “Sources used” — check citation payload / `normalizeCitations`.
+ */
 import { normalizeCitations } from "@/lib/citations";
 import type { Citation } from "@/lib/db";
 

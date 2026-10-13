@@ -1,3 +1,8 @@
+/**
+ * Heuristic quirk categorization from kit/details text (phrases then keyword scores).
+ * Look here when auto-category is wrong on new reports — adjust STRONG_PHRASES /
+ * keyword maps, not the DB migration backfill logic.
+ */
 import {
   QUIRK_CATEGORIES,
   QUIRK_CATEGORY_LABELS,
@@ -10,6 +15,8 @@ export type QuirkTextInput = {
   quirkDetails: string;
   extraNotes?: string | null;
 };
+
+// --- Phrase rules ---
 
 /** Strong phrase matches — checked before keyword scoring. */
 const STRONG_PHRASES: Array<{ category: QuirkCategory; phrases: string[] }> = [
@@ -75,6 +82,8 @@ const STRONG_PHRASES: Array<{ category: QuirkCategory; phrases: string[] }> = [
     ],
   },
 ];
+
+// --- Keyword scores ---
 
 const KEYWORDS: Record<Exclude<QuirkCategory, "other">, string[]> = {
   network: [
@@ -203,6 +212,8 @@ function scoreKeywords(text: string, keywords: string[]): number {
   }
   return score;
 }
+
+// --- Inference ---
 
 /** Guess problem type from kit name and description text. */
 export function inferQuirkCategory(input: QuirkTextInput): QuirkCategory {

@@ -1,3 +1,8 @@
+/**
+ * Bootstrap LAN built-in notebooks from seed/manifest.json and sync documents.
+ * Look here when home notebooks are missing, legacy builtin-notebook ids linger,
+ * or disk seed files aren't indexed into SQLite.
+ */
 import path from "path";
 import { getDb } from "./db";
 import { readSeedManifest, type SeedNotebook } from "./seed-manifest";

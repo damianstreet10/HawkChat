@@ -1,3 +1,7 @@
+/**
+ * Allocate unique QK-###### reference ids for quirk reports.
+ * Look here when reference ids collide or migration backfill fails uniqueness.
+ */
 import { randomBytes } from "crypto";
 import type Database from "better-sqlite3";
 
@@ -5,6 +9,7 @@ export function generateQuirkReferenceId(): string {
   return `QK-${randomBytes(3).toString("hex").toUpperCase()}`;
 }
 
+/** Generate a reference id not already present in quirk_reports. */
 export function allocateQuirkReferenceId(db: Database.Database): string {
   for (let attempt = 0; attempt < 8; attempt++) {
     const referenceId = generateQuirkReferenceId();

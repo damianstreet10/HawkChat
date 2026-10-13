@@ -1,3 +1,8 @@
+/**
+ * POST /api/auth/site-login — guest site-password gate (name + password).
+ * Callers: public/LAN home login when HAWKCHAT_SITE_PASSWORD is set.
+ * Debug here for 503 (gate off), 401 wrong password, or guest cookie/session issues.
+ */
 import { NextResponse } from "next/server";
 import {
   clearSessionCookieOptions,
@@ -14,6 +19,7 @@ import {
   siteAccessToken,
 } from "@/lib/site-gate";
 
+/** Validate site password; set site-access + guest label + fresh client session. */
 export async function POST(request: Request) {
   if (!isSiteGateEnabled()) {
     return NextResponse.json(

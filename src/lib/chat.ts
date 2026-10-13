@@ -1,3 +1,8 @@
+/**
+ * RAG chat completion: retrieve chunks, call OpenAI, return answer + citations.
+ * Look here when answers ignore documents, citations are empty, or OPENAI_CHAT_MODEL
+ * / API key errors surface during ask.
+ */
 import OpenAI from "openai";
 import {
   buildContextBlock,
@@ -28,6 +33,7 @@ function getClient(): OpenAI {
   return new OpenAI({ apiKey });
 }
 
+/** Retrieve notebook context and ask the chat model; returns markdown + citations. */
 export async function generateGroundedReply(
   notebookId: string,
   userMessage: string,

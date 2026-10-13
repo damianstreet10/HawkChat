@@ -1,3 +1,7 @@
+/**
+ * Extract plain text from uploaded PDFs and text-like files for ingest.
+ * Look here when a file uploads but yields empty/garbled text (mime vs extension).
+ */
 import pdf from "pdf-parse";
 
 export async function extractTextFromFile(

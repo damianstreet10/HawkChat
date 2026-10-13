@@ -1,5 +1,10 @@
+/**
+ * Nodemailer SMTP config/send for quirk emails (resolved + notify).
+ * Look here when mail fails — HAWKCHAT_SMTP_HOST/USER/PASS/PORT/SECURE.
+ */
 import nodemailer from "nodemailer";
 
+/** Return SMTP options from env, or null if incomplete. */
 export function smtpConfig() {
   const host = process.env.HAWKCHAT_SMTP_HOST?.trim();
   const user = process.env.HAWKCHAT_SMTP_USER?.trim();

@@ -1,14 +1,22 @@
+/**
+ * POST /api/notebooks/[id]/messages/[messageId]/feedback — thumbs up/down.
+ * Callers: chat message feedback controls. Debug session mismatch 403,
+ * feedback only on assistant rows, or invalid feedback values.
+ */
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireAuth } from "@/lib/auth";
 import { getClientSessionIdFromRequest } from "@/lib/client-session";
 import { getDb } from "@/lib/db";
+import { requireNotebookAccess } from "@/lib/event-access";
 import { isMessageFeedback } from "@/lib/message-feedback";
 
 type Params = { params: { id: string; messageId: string } };
 
+/** Auth + same client session: set helpful / not_helpful on an assistant message. */
 export async function POST(request: Request, { params }: Params) {
   try {
-    requireAuth(request);
+    const user = requireAuth(request);
+    requireNotebookAccess(user, params.id);
   } catch (err) {
     const res = authErrorResponse(err);
     if (res) return res;

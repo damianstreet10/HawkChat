@@ -1,3 +1,8 @@
+/**
+ * OpenAI embeddings + cosine similarity for RAG retrieval.
+ * Look here when ingest/chat fails with OPENAI_API_KEY errors, or retrieval
+ * scores look wrong (model: OPENAI_EMBEDDING_MODEL).
+ */
 import OpenAI from "openai";
 
 const EMBEDDING_MODEL =
@@ -13,6 +18,7 @@ function getClient(): OpenAI {
   return new OpenAI({ apiKey });
 }
 
+/** Embed many strings in one API call (order preserved). */
 export async function embedTexts(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];
   const client = getClient();
@@ -30,6 +36,7 @@ export async function embedText(text: string): Promise<number[]> {
   return embedding;
 }
 
+/** Cosine similarity in [-1, 1]; used to rank retrieved chunks. */
 export function cosineSimilarity(a: number[], b: number[]): number {
   let dot = 0;
   let normA = 0;

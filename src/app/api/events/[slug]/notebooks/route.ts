@@ -1,3 +1,8 @@
+/**
+ * GET /api/events/[slug]/notebooks — notebooks for an event the user can access.
+ * Callers: event notebook picker. Debug membership, seed/ensure docs, or empty
+ * manifest notebook list after provision.
+ */
 import { NextResponse } from "next/server";
 import {
   authErrorResponse,
@@ -10,12 +15,13 @@ import {
   getEventManifestNotebooks,
   isWorldCupEvent,
 } from "@/lib/world-cup-event";
-import { getEventBySlug, isUserEventMember } from "@/lib/events";
-import { isStaffPortalRole } from "@/lib/permissions";
+import { canAccessEvent } from "@/lib/event-access";
+import { getEventBySlug } from "@/lib/events";
 import { getNotebookDocumentNames } from "@/lib/notebook-documents";
 
 type Params = { params: { slug: string } };
 
+/** Member: list event notebooks with document names (WC uses builtin seed). */
 export async function GET(request: Request, { params }: Params) {
   try {
     const user = getAuthUserFromRequest(request);
@@ -28,10 +34,7 @@ export async function GET(request: Request, { params }: Params) {
       return NextResponse.json({ error: "Event not found" }, { status: 404 });
     }
 
-    if (
-      !isStaffPortalRole(user.role) &&
-      !isUserEventMember(user.id, params.slug)
-    ) {
+    if (!canAccessEvent(user, params.slug)) {
       return NextResponse.json({ error: "Not a member of this event" }, {
         status: 403,
       });

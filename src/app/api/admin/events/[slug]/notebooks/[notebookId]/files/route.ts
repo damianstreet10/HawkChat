@@ -1,5 +1,13 @@
+/**
+ * GET /api/admin/events/[slug]/notebooks/[notebookId]/files — list seed files.
+ * POST — event editor upload + index a file.
+ * DELETE — event editor remove a seed file.
+ * Callers: Manage files UI. Debug kit-quirks block, WC restrictions, or
+ * uploadAndIndexNotebookFile / reindex failures.
+ */
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireAdmin } from "@/lib/auth";
+import { requireEventEditor } from "@/lib/event-ownership";
 import { readEventManifest } from "@/lib/event-manifest";
 import {
   deleteNotebookSeedFile,
@@ -17,6 +25,7 @@ function getNotebookEntry(slug: string, notebookId: string) {
   return manifest.notebooks.find((entry) => entry.notebookId === notebookId) ?? null;
 }
 
+/** Admin: list seed files for an event notebook. */
 export async function GET(request: Request, { params }: Params) {
   try {
     requireAdmin(request);
@@ -46,9 +55,10 @@ export async function GET(request: Request, { params }: Params) {
   });
 }
 
+/** Event editor: upload a document into the notebook seed dir and index it. */
 export async function POST(request: Request, { params }: Params) {
   try {
-    requireAdmin(request);
+    requireEventEditor(request, params.slug);
   } catch (err) {
     const res = authErrorResponse(err);
     if (res) return res;
@@ -101,9 +111,10 @@ export async function POST(request: Request, { params }: Params) {
   }
 }
 
+/** Event editor: delete a seed file from the notebook documents dir. */
 export async function DELETE(request: Request, { params }: Params) {
   try {
-    requireAdmin(request);
+    requireEventEditor(request, params.slug);
   } catch (err) {
     const res = authErrorResponse(err);
     if (res) return res;

@@ -1,3 +1,7 @@
+/**
+ * Anonymous guest session cookie (hawkchat_guest) and client IP for audit logs.
+ * Look here when guest activity isn't attributed, or IP is always unknown behind a proxy.
+ */
 import { randomBytes } from "crypto";
 
 export const CLIENT_SESSION_COOKIE = "hawkchat_guest";
@@ -7,6 +11,7 @@ export function generateClientSessionId(): string {
   return randomBytes(16).toString("hex");
 }
 
+/** Read hawkchat_guest from the Cookie header, if present. */
 export function getClientSessionIdFromRequest(
   request: Request,
 ): string | undefined {

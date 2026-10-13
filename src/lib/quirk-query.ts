@@ -1,3 +1,8 @@
+/**
+ * Quirk report list/export SQL builders, filters, and category/status stats.
+ * Look here when admin quirk lists miss rows, search doesn't match, or
+ * eventSlug vs lanOnly scoping looks wrong.
+ */
 import type Database from "better-sqlite3";
 import type { QuirkCategoryFilter } from "./quirk-category";
 import type { QuirkStatusFilter } from "./quirk-status";
@@ -75,6 +80,8 @@ function buildQuirkListQuery(params: QuirkListParams): {
   };
 }
 
+// --- Lists ---
+
 export function listQuirkReports(
   db: Database.Database,
   params: QuirkListParams,
@@ -83,12 +90,15 @@ export function listQuirkReports(
   return db.prepare(sql).all(...bindings);
 }
 
+/** Same filters as list, but capped at 5000 rows for CSV export. */
 export function listQuirkReportsForExport(
   db: Database.Database,
   params: Omit<QuirkListParams, "limit">,
 ) {
   return listQuirkReports(db, { ...params, limit: 5000 });
 }
+
+// --- Stats ---
 
 export function quirkCategoryStats(
   db: Database.Database,

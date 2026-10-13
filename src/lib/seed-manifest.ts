@@ -1,3 +1,7 @@
+/**
+ * Read seed/manifest.json (v1 single notebook or v2 notebooks[]).
+ * Look here when LAN notebooks don't load or documentsDir paths resolve wrong.
+ */
 import fs from "fs";
 import path from "path";
 

@@ -1,3 +1,8 @@
+/**
+ * GET /api/admin/events/[slug]/seed-files — list per-notebook seed folders/files.
+ * Callers: event seed file admin (non–World Cup). Debug missing manifest,
+ * WC redirect error, or kit-quirks notebooks filtered out of the list.
+ */
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireAdmin } from "@/lib/auth";
 import { readEventManifest } from "@/lib/event-manifest";
@@ -16,6 +21,7 @@ import { isWorldCupEvent } from "@/lib/world-cup-constants";
 
 type Params = { params: { slug: string } };
 
+/** Admin: overview of event seed dirs/files (not for World Cup). */
 export async function GET(request: Request, { params }: Params) {
   try {
     requireAdmin(request);

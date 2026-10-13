@@ -1,3 +1,7 @@
+/**
+ * Quirk report category enum, labels, and filter tabs for admin UI.
+ * Look here when category filters reject a value or labels don't match stored rows.
+ */
 export const QUIRK_CATEGORIES = [
   "network",
   "hardware",

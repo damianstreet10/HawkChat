@@ -1,20 +1,30 @@
+/**
+ * GET /api/events — list events the signed-in user can access.
+ * POST /api/events — admin creates an event (+ members + notebook provision).
+ * Callers: events picker / admin create form. Debug GET for membership/access;
+ * POST for slug conflicts, department validation, or provision/seed failures.
+ */
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import {
   authErrorResponse,
   getAuthUserFromRequest,
   requireAdmin,
+  requireRegisteredUserByEmail,
 } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { provisionEventNotebooks } from "@/lib/event-provision";
-import { getUserEvents, listEvents } from "@/lib/events";
+import { provisionEventNotebooks, parseCustomNotebooks } from "@/lib/event-provision";
+import { listAccessibleEventsWithStatus } from "@/lib/event-access";
 import { isNotebookTemplateId } from "@/lib/notebook-templates";
-import { isStaffPortalRole } from "@/lib/permissions";
+import { attachCreator, parseEventDate } from "@/lib/events";
+import { parseEventDepartment } from "@/lib/event-departments";
+import { canEditEvent } from "@/lib/event-ownership";
 import {
   getEventManifestNotebooks,
   sortEventsForPicker,
 } from "@/lib/world-cup-event";
 
+/** Signed-in: accessible events with status, notebook counts, and canEdit. */
 export async function GET(request: Request) {
   try {
     const user = getAuthUserFromRequest(request);
@@ -22,21 +32,15 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Sign in required" }, { status: 401 });
     }
 
-    if (isStaffPortalRole(user.role)) {
-      const events = sortEventsForPicker(
-        listEvents().map((event) => ({
-          ...event,
-          notebookCount: getEventManifestNotebooks(event.slug).length,
-        })),
-      );
-      return NextResponse.json({ events });
-    }
-
     const events = sortEventsForPicker(
-      getUserEvents(user.id).map((event) => ({
-        ...event,
-        notebookCount: getEventManifestNotebooks(event.slug).length,
-      })),
+      listAccessibleEventsWithStatus(user).map((event) => {
+        const withCreator = attachCreator(event);
+        return {
+          ...withCreator,
+          notebookCount: getEventManifestNotebooks(event.slug).length,
+          canEdit: canEditEvent(user, event),
+        };
+      }),
     );
 
     return NextResponse.json({ events });
@@ -47,9 +51,11 @@ export async function GET(request: Request) {
   }
 }
 
+/** Admin: create event row, enroll members, provision notebooks from templates. */
 export async function POST(request: Request) {
+  let admin;
   try {
-    requireAdmin(request);
+    admin = requireAdmin(request);
   } catch (err) {
     const res = authErrorResponse(err);
     if (res) return res;
@@ -76,6 +82,10 @@ export async function POST(request: Request) {
         .map((id: string) => id.trim())
         .filter(isNotebookTemplateId)
     : [];
+  const customNotebooks = parseCustomNotebooks(body.customNotebooks);
+  const startsAt = parseEventDate(body.startsAt ?? body.starts_at);
+  const endsAt = parseEventDate(body.endsAt ?? body.ends_at);
+  const department = parseEventDepartment(body.department);
 
   if (!slug || !title) {
     return NextResponse.json(
@@ -84,9 +94,29 @@ export async function POST(request: Request) {
     );
   }
 
-  if (notebookTemplates.length === 0) {
+  if (!department) {
     return NextResponse.json(
-      { error: "Select at least one notebook template." },
+      {
+        error:
+          "department is required (football-events, uk-football, cricket, rugby, or tennis).",
+      },
+      { status: 400 },
+    );
+  }
+
+  if (startsAt && endsAt && endsAt < startsAt) {
+    return NextResponse.json(
+      { error: "End date must be on or after the start date." },
+      { status: 400 },
+    );
+  }
+
+  if (notebookTemplates.length === 0 && customNotebooks.length === 0) {
+    return NextResponse.json(
+      {
+        error:
+          "Select at least one notebook template or add a custom notebook.",
+      },
       { status: 400 },
     );
   }
@@ -105,19 +135,29 @@ export async function POST(request: Request) {
   const eventId = uuidv4();
   const now = new Date().toISOString();
   db.prepare(
-    `INSERT INTO events (id, slug, title, description, created_at)
-     VALUES (?, ?, ?, ?, ?)`,
-  ).run(eventId, slug, title, description || null, now);
+    `INSERT INTO events (id, slug, title, description, created_at, starts_at, ends_at, department, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    eventId,
+    slug,
+    title,
+    description || null,
+    now,
+    startsAt,
+    endsAt,
+    department,
+    admin.id,
+  );
 
   const added: string[] = [];
-  const missing: string[] = [];
+  const notRegistered: string[] = [];
 
   for (const email of memberEmails) {
-    const user = db
-      .prepare(`SELECT id FROM users WHERE email = ?`)
-      .get(email) as { id: string } | undefined;
-    if (!user) {
-      missing.push(email);
+    let user;
+    try {
+      user = requireRegisteredUserByEmail(email);
+    } catch {
+      notRegistered.push(email);
       continue;
     }
     db.prepare(
@@ -127,9 +167,25 @@ export async function POST(request: Request) {
     added.push(email);
   }
 
+  if (memberEmails.length > 0 && added.length === 0 && notRegistered.length > 0) {
+    db.prepare(`DELETE FROM events WHERE id = ?`).run(eventId);
+    return NextResponse.json(
+      {
+        error: `No HawkChat account for: ${notRegistered.join(", ")}. Ask them to create an account first.`,
+        notRegistered,
+      },
+      { status: 400 },
+    );
+  }
+
   let provisioned: {
     notebooks: string[];
     copiedFiles: number;
+    customNotebooks: Array<{
+      clientKey?: string;
+      notebookId: string;
+      title: string;
+    }>;
   } | null = null;
 
   try {
@@ -138,6 +194,7 @@ export async function POST(request: Request) {
       title,
       description,
       notebookTemplates,
+      customNotebooks,
     );
   } catch (err) {
     db.prepare(`DELETE FROM events WHERE id = ?`).run(eventId);
@@ -157,9 +214,15 @@ export async function POST(request: Request) {
     slug,
     title,
     description: description || null,
+    department,
+    created_by: admin.id,
+    created_by_name: admin.name,
+    created_by_email: admin.email,
     membersAdded: added,
-    membersMissing: missing,
+    startsAt,
+    endsAt,
     notebooks: provisioned.notebooks,
+    customNotebooks: provisioned.customNotebooks,
     copiedFiles: provisioned.copiedFiles,
     setupHint: `Event manifest written to seed/events/${slug}/. Add more PDFs there or restart with HAWKCHAT_AUTO_SEED=true to index documents.`,
   });

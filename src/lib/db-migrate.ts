@@ -1,7 +1,13 @@
+/**
+ * Incremental SQLite migrations invoked from getDb() on every open.
+ * Look here when a column/table is missing after an upgrade, or quirk/event schema
+ * looks stale — each migrate* is idempotent ALTER/CREATE IF NOT EXISTS.
+ */
 import type Database from "better-sqlite3";
 import { inferQuirkCategory } from "./quirk-auto-category";
 import { allocateQuirkReferenceId } from "./quirk-reference";
 
+/** Run all pending schema upgrades in a fixed order. */
 export function runMigrations(database: Database.Database): void {
   migrateMessageClientColumns(database);
   migrateMessageGuestLabel(database);
@@ -13,8 +19,14 @@ export function runMigrations(database: Database.Database): void {
   migrateQuirkCategorySource(database);
   migrateUserMonitorRole(database);
   migrateEvents(database);
+  migrateEventDates(database);
+  migrateEventDepartment(database);
+  migrateEventCreatedBy(database);
+  migrateUserPasswordHash(database);
   migrateQuirkEventSlug(database);
 }
+
+// --- Quirks ---
 
 function migrateQuirkReports(database: Database.Database): void {
   database.exec(`
@@ -137,6 +149,8 @@ function migrateQuirkCategorySource(database: Database.Database): void {
   }
 }
 
+// --- Messages ---
+
 function migrateMessageGuestLabel(database: Database.Database): void {
   const cols = database
     .prepare(`PRAGMA table_info(messages)`)
@@ -226,6 +240,8 @@ function migrateQuirkEventSlug(database: Database.Database): void {
   }
 }
 
+// --- Events ---
+
 function migrateEvents(database: Database.Database): void {
   database.exec(`
     CREATE TABLE IF NOT EXISTS events (
@@ -248,6 +264,52 @@ function migrateEvents(database: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_event_members_user ON event_members(user_id);
   `);
 }
+
+/** Optional project window — YYYY-MM-DD strings (null = open-ended). */
+function migrateEventDates(database: Database.Database): void {
+  const cols = database
+    .prepare(`PRAGMA table_info(events)`)
+    .all() as Array<{ name: string }>;
+  const names = new Set(cols.map((c) => c.name));
+  if (!names.has("starts_at")) {
+    database.exec(`ALTER TABLE events ADD COLUMN starts_at TEXT`);
+  }
+  if (!names.has("ends_at")) {
+    database.exec(`ALTER TABLE events ADD COLUMN ends_at TEXT`);
+  }
+}
+
+/** Department / sport category for filtering projects. */
+function migrateEventDepartment(database: Database.Database): void {
+  const cols = database
+    .prepare(`PRAGMA table_info(events)`)
+    .all() as Array<{ name: string }>;
+  if (!cols.some((c) => c.name === "department")) {
+    database.exec(`ALTER TABLE events ADD COLUMN department TEXT`);
+  }
+}
+
+/** User id of the admin who created the event (edit ownership). */
+function migrateEventCreatedBy(database: Database.Database): void {
+  const cols = database
+    .prepare(`PRAGMA table_info(events)`)
+    .all() as Array<{ name: string }>;
+  if (!cols.some((c) => c.name === "created_by")) {
+    database.exec(`ALTER TABLE events ADD COLUMN created_by TEXT`);
+  }
+}
+
+/** Optional login password (null = legacy account; must set via register/claim). */
+function migrateUserPasswordHash(database: Database.Database): void {
+  const cols = database
+    .prepare(`PRAGMA table_info(users)`)
+    .all() as Array<{ name: string }>;
+  if (!cols.some((c) => c.name === "password_hash")) {
+    database.exec(`ALTER TABLE users ADD COLUMN password_hash TEXT`);
+  }
+}
+
+// --- Users ---
 
 function migrateUserMonitorRole(database: Database.Database): void {
   const row = database

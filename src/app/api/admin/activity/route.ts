@@ -1,9 +1,14 @@
+/**
+ * GET /api/admin/activity — LAN/World Cup chat exchanges for monitors.
+ * Callers: global admin activity view. Debug requireMonitor and lanOnly filter
+ * (tournament event chats live under /api/events/[slug]/admin/activity).
+ */
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireMonitor } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { listEventExchanges } from "@/lib/event-activity";
 
-/** World Cup / LAN demo chat feedback only (not tournament events). */
+/** Monitor+: LAN-only chat feedback / exchanges (?limit). */
 export async function GET(request: Request) {
   try {
     requireMonitor(request);

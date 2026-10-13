@@ -1,3 +1,7 @@
+/**
+ * World Cup event helpers: reuse LAN seed notebooks and sort picker lists.
+ * Look here when world-cup-2026 shows wrong notebooks or sort order vs other events.
+ */
 import { readEventManifest } from "./event-manifest";
 import { readSeedManifest, type SeedNotebook } from "./seed-manifest";
 import { isWorldCupEvent, WORLD_CUP_EVENT_SLUG } from "./world-cup-constants";
@@ -9,6 +13,7 @@ export function getWorldCupNotebooks(): SeedNotebook[] {
   return readSeedManifest() ?? [];
 }
 
+/** Event manifest notebooks, or LAN seed notebooks for the World Cup slug. */
 export function getEventManifestNotebooks(slug: string): SeedNotebook[] {
   if (isWorldCupEvent(slug)) {
     return getWorldCupNotebooks();
@@ -16,6 +21,7 @@ export function getEventManifestNotebooks(slug: string): SeedNotebook[] {
   return readEventManifest(slug)?.notebooks ?? [];
 }
 
+/** Sort events for the picker: World Cup and known demos first, then A–Z. */
 export function sortEventsForPicker<
   T extends { slug: string; title: string },
 >(events: T[]): T[] {

@@ -1,5 +1,9 @@
 "use client";
 
+/**
+ * Top nav for LAN demo / notebook home (logo, auth links, admin shortcuts).
+ * Debug missing Manage/Activity links or logout — driven by `useSession` + LAN_DEMO.
+ */
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";

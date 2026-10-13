@@ -1,3 +1,7 @@
+/**
+ * Split document text into overlapping chunks for embedding (~800 chars).
+ * Look here when ingest creates too few/many chunks or cuts mid-sentence badly.
+ */
 const CHUNK_SIZE = 800;
 const CHUNK_OVERLAP = 120;
 

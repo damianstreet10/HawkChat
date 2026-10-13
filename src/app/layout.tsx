@@ -1,3 +1,8 @@
+/**
+ * Root HTML shell: fonts, global CSS, document metadata.
+ * Debug here for missing fonts/CSS variables (`--font-sans`, `--font-display`)
+ * or incorrect page title/description — not for auth or data fetching.
+ */
 import type { Metadata } from "next";
 import { Inter, Rajdhani } from "next/font/google";
 import "./globals.css";

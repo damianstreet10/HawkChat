@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * Global (LAN demo) chat activity / feedback viewer.
+ * Debug `canViewActivity` gates or World Cup feedback list issues — tournament
+ * activity lives under `/events/[slug]/activity` instead.
+ */
 import Link from "next/link";
 import { AppHeader } from "@/components/AppHeader";
 import { EventActivityView } from "@/components/EventActivityView";

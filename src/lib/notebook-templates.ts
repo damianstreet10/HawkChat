@@ -1,3 +1,8 @@
+/**
+ * Shared LAN notebook template IDs/labels used when provisioning events.
+ * Look here when a template id won't validate, or Kit Quirks is treated as a
+ * document notebook (it has no seed files).
+ */
 /** Template notebook IDs from seed/manifest.json — shared LAN document folders. */
 export const NOTEBOOK_TEMPLATE_IDS = [
   "useful-resources",

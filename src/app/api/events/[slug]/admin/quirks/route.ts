@@ -1,3 +1,8 @@
+/**
+ * GET /api/events/[slug]/admin/quirks — quirk reports for this event (monitor+).
+ * Callers: event Quirks admin. Debug requireEventMonitor, WC lanOnly vs
+ * eventSlug filter, or status/category/q query params.
+ */
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { eventAdminError, requireEventMonitor } from "@/lib/event-admin-api";
@@ -13,6 +18,7 @@ import { isWorldCupEvent } from "@/lib/world-cup-event";
 
 type Params = { params: { slug: string } };
 
+/** Event monitor+: filtered quirk reports for this slug (or LAN for WC). */
 export async function GET(request: Request, { params }: Params) {
   try {
     requireEventMonitor(request, params.slug);

@@ -1,3 +1,8 @@
+/**
+ * Read/list event seed manifests under seed/events/{slug}/manifest.json.
+ * Look here when an event slug exists in the DB but has no notebooks, or disk
+ * provisioning wrote a malformed manifest.
+ */
 import fs from "fs";
 import path from "path";
 import type { SeedNotebook } from "./seed-manifest";
@@ -8,6 +13,7 @@ export type EventManifest = {
   notebooks: SeedNotebook[];
 };
 
+/** Absolute path to seed/events/{slug}. */
 export function eventSeedRoot(slug: string): string {
   return path.join(process.cwd(), "seed", "events", slug);
 }
@@ -16,6 +22,7 @@ export function eventManifestPath(slug: string): string {
   return path.join(eventSeedRoot(slug), "manifest.json");
 }
 
+/** Parse manifest.json; null if missing or missing required fields. */
 export function readEventManifest(slug: string): EventManifest | null {
   const manifestPath = eventManifestPath(slug);
   if (!fs.existsSync(manifestPath)) return null;

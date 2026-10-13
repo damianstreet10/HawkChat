@@ -1,3 +1,8 @@
+/**
+ * GET /api/events/[slug]/admin/quirks/export — CSV export for this event's quirks.
+ * Callers: event Quirks export. Debug filters, WC lanOnly vs eventSlug, and
+ * CSV response headers.
+ */
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { eventAdminError, requireEventMonitor } from "@/lib/event-admin-api";
@@ -14,6 +19,7 @@ import { isWorldCupEvent } from "@/lib/world-cup-event";
 
 type Params = { params: { slug: string } };
 
+/** Event monitor+: download filtered quirks for this event as CSV. */
 export async function GET(request: Request, { params }: Params) {
   try {
     requireEventMonitor(request, params.slug);

@@ -1,3 +1,8 @@
+/**
+ * POST /api/notebooks/[id]/chat — send a user message and get a grounded reply.
+ * Callers: chat UI. Debug requireNotebookChat, empty client session history,
+ * RAG/LLM failures in generateGroundedReply, or guest label/IP not stored.
+ */
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { authErrorResponse, requireAuth } from "@/lib/auth";
@@ -11,12 +16,15 @@ import { readGuestLabelFromCookie } from "@/lib/site-gate";
 import { ensureBuiltinDocuments, ensureBuiltinNotebooks } from "@/lib/auto-seed";
 import { getDb } from "@/lib/db";
 import { generateGroundedReply } from "@/lib/chat";
+import { requireNotebookChat } from "@/lib/event-access";
 
 type Params = { params: { id: string } };
 
+/** Auth + chat access: persist user/assistant messages scoped to client session. */
 export async function POST(request: Request, { params }: Params) {
   try {
-    requireAuth(request);
+    const user = requireAuth(request);
+    requireNotebookChat(user, params.id);
   } catch (err) {
     const res = authErrorResponse(err);
     if (res) return res;

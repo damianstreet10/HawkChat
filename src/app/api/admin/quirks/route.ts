@@ -1,3 +1,8 @@
+/**
+ * GET /api/admin/quirks — list LAN kit quirk reports (monitor+).
+ * Callers: global quirks admin. Debug status/category/q filters, lanOnly scope,
+ * or email/notify config flags on the response.
+ */
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireMonitor } from "@/lib/auth";
 import { getDb } from "@/lib/db";
@@ -10,6 +15,7 @@ import { isQuirkNotifyConfigured } from "@/lib/quirk-notify";
 import { listQuirkReports } from "@/lib/quirk-query";
 import { isQuirkStatusFilter, type QuirkStatusFilter } from "@/lib/quirk-status";
 
+/** Monitor+: filtered LAN quirk reports + notify/email capability flags. */
 export async function GET(request: Request) {
   try {
     requireMonitor(request);

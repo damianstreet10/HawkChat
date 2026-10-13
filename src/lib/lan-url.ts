@@ -1,8 +1,13 @@
+/**
+ * Detect/validate LAN IPv4 URLs for sharing the local HawkChat instance.
+ * Look here when the share URL shows the wrong interface or rejects a host.
+ */
 import os from "os";
 
 const IPV4_HOST =
   /^(\d{1,3}\.){3}\d{1,3}$/;
 
+/** True if URL hostname is a dotted IPv4 (typical LAN share link). */
 export function isValidLanUrl(url: string): boolean {
   try {
     const u = new URL(url);

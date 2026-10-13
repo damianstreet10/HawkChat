@@ -1,14 +1,22 @@
+/**
+ * GET /api/notebooks/[id]/messages — chat history for this client session.
+ * Callers: chat UI load. Debug empty array when clientSessionId cookie missing,
+ * or citation JSON parse / normalize issues.
+ */
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireAuth } from "@/lib/auth";
 import { getClientSessionIdFromRequest } from "@/lib/client-session";
 import { normalizeCitations } from "@/lib/citations";
 import { getDb, type Citation } from "@/lib/db";
+import { requireNotebookAccess } from "@/lib/event-access";
 
 type Params = { params: { id: string } };
 
+/** Auth + access: messages for the request's clientSessionId only. */
 export async function GET(request: Request, { params }: Params) {
   try {
-    requireAuth(request);
+    const user = requireAuth(request);
+    requireNotebookAccess(user, params.id);
   } catch (err) {
     const res = authErrorResponse(err);
     if (res) return res;

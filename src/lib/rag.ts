@@ -1,3 +1,8 @@
+/**
+ * Retrieve top embedding-similar chunks and format context/citations for chat.
+ * Look here when answers miss relevant docs (MIN_SCORE / per-source caps) or
+ * citations don't match what was retrieved.
+ */
 import { getDb, type Citation, type Chunk } from "./db";
 import { cosineSimilarity, embedText } from "./embeddings";
 
@@ -10,6 +15,7 @@ const MIN_SCORE = 0.32;
 const MAX_CHUNKS_TOTAL = 10;
 const MAX_CHUNKS_PER_SOURCE = 2;
 
+/** Embed the query and rank notebook chunks by cosine similarity. */
 export async function retrieveChunks(
   notebookId: string,
   query: string,

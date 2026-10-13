@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * Home / notebook list (LAN demo & legacy entry).
+ * Debug here when the root `/` notebook cards fail to load, create, or respect
+ * LAN-demo / disabled-notebook rules — API: GET/POST `/api/notebooks`.
+ */
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";

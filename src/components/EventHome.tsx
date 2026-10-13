@@ -1,9 +1,15 @@
 "use client";
 
+/**
+ * Event home notebook grid + browse-only messaging.
+ * Debug card descriptions, disabled notebooks, or chatOpen/timeStatus copy —
+ * links into `/notebook/[id]?event=…`.
+ */
 import Link from "next/link";
 import { NotebookDocumentList } from "@/components/NotebookDocumentList";
 import { notebookCardDescription } from "@/lib/notebook-description";
 import { isNotebookDisabled } from "@/lib/disabled-notebooks";
+import type { EventTimeStatus } from "@/lib/events";
 
 type NotebookRow = {
   id: string;
@@ -17,6 +23,9 @@ type EventInfo = {
   slug: string;
   title: string;
   manifestDescription?: string | null;
+  timeStatus?: EventTimeStatus;
+  chatOpen?: boolean;
+  dateRangeLabel?: string | null;
 };
 
 export function EventHome({
@@ -32,21 +41,38 @@ export function EventHome({
   notebooks?: NotebookRow[];
   onRetry?: () => void;
 }) {
+  const status = event.timeStatus ?? "active";
+  const chatOpen = event.chatOpen !== false;
+
   return (
     <section className="hawk-card mx-auto max-w-lg p-8 text-center">
       <p className="text-xs font-bold uppercase tracking-widest text-orange">
-        Tournament space
+        Project space
       </p>
       <h2 className="font-display mt-3 text-2xl font-bold uppercase tracking-wide text-hawk-50">
         {event.title}
       </h2>
+      {event.dateRangeLabel && (
+        <p className="mt-2 text-xs uppercase tracking-widest text-hawk-400">
+          {event.dateRangeLabel}
+          {status === "past"
+            ? " · Previous"
+            : status === "upcoming"
+              ? " · Upcoming"
+              : " · Active"}
+        </p>
+      )}
       {event.manifestDescription && (
         <p className="mt-3 text-sm leading-relaxed text-hawk-200">
           {event.manifestDescription}
         </p>
       )}
       <p className="mt-4 text-sm text-hawk-300">
-        Choose a notebook. Answers only use documents for this tournament.
+        {chatOpen
+          ? "Choose a notebook. Answers only use documents for this project."
+          : status === "upcoming"
+            ? "This project has not started yet. You can browse notebooks; questions open on the start date."
+            : "This project has ended. You can browse notebooks and past answers, but cannot ask new questions."}
       </p>
 
       {loadError ? (
@@ -64,11 +90,11 @@ export function EventHome({
         </div>
       ) : loading ? (
         <p className="mt-6 animate-pulse text-sm text-hawk-400">
-          Preparing tournament documents…
+          Preparing project documents…
         </p>
       ) : notebooks.length === 0 ? (
         <p className="mt-6 text-sm text-hawk-400">
-          No notebooks for this event yet. An admin can add PDFs under{" "}
+          No notebooks for this project yet. An admin can add PDFs under{" "}
           <span className="font-mono text-hawk-200">
             seed/events/{event.slug}/
           </span>

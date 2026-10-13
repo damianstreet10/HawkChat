@@ -1,9 +1,15 @@
 "use client";
 
+/**
+ * Admin “Manage events” — create/edit projects, notebooks, members, seed files.
+ * Debug create failures, template/custom notebook provisioning, member enroll,
+ * or modal actions (edit/delete/file manager/members) — APIs under `/api/admin/events`.
+ */
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { StaffPortalHeader } from "@/components/StaffPortalHeader";
 import { SeedFileExplorer } from "@/components/SeedFileExplorer";
+import { MemberEmailPicker } from "@/components/MemberEmailPicker";
 import { useSession } from "@/hooks/useSession";
 import { WORLD_CUP_EVENT_SLUG } from "@/lib/world-cup-constants";
 import {
@@ -11,6 +17,13 @@ import {
   notebookTemplateHasSeedFiles,
   type NotebookTemplateId,
 } from "@/lib/notebook-templates";
+import {
+  EVENT_DEPARTMENTS,
+  EVENT_DEPARTMENT_LABELS,
+  departmentLabel,
+  departmentStyle,
+  type EventDepartment,
+} from "@/lib/event-departments";
 
 type EventRow = {
   id: string;
@@ -18,6 +31,15 @@ type EventRow = {
   title: string;
   description: string | null;
   notebookCount?: number;
+  starts_at?: string | null;
+  ends_at?: string | null;
+  dateRangeLabel?: string | null;
+  timeStatus?: string;
+  department?: string | null;
+  created_by?: string | null;
+  created_by_name?: string | null;
+  created_by_email?: string | null;
+  canEdit?: boolean;
 };
 
 type NotebookTemplate = {
@@ -38,6 +60,21 @@ type EventNotebookFiles = {
   files: string[];
 };
 
+type CustomNotebookDraft = {
+  key: string;
+  title: string;
+  description: string;
+  files: File[];
+};
+
+type EventMember = {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  enrolled_at: string;
+};
+
 export default function AdminEventsPage() {
   const session = useSession();
   const [events, setEvents] = useState<EventRow[]>([]);
@@ -46,7 +83,12 @@ export default function AdminEventsPage() {
   const [slug, setSlug] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [memberEmails, setMemberEmails] = useState("");
+  const [startsAt, setStartsAt] = useState("");
+  const [endsAt, setEndsAt] = useState("");
+  const [department, setDepartment] = useState<EventDepartment | "">(
+    "football-events",
+  );
+  const [memberEmails, setMemberEmails] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
   const [createMessage, setCreateMessage] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<EventRow | null>(null);
@@ -60,6 +102,9 @@ export default function AdminEventsPage() {
   >(() => new Set(NOTEBOOK_TEMPLATE_IDS));
   const [expandedTemplate, setExpandedTemplate] =
     useState<NotebookTemplateId | null>(null);
+  const [customNotebooks, setCustomNotebooks] = useState<CustomNotebookDraft[]>(
+    [],
+  );
   const [fileManagerEvent, setFileManagerEvent] = useState<EventRow | null>(
     null,
   );
@@ -70,6 +115,27 @@ export default function AdminEventsPage() {
   const [fileManagerError, setFileManagerError] = useState<string | null>(
     null,
   );
+  const [newCustomTitle, setNewCustomTitle] = useState("");
+  const [newCustomDescription, setNewCustomDescription] = useState("");
+  const [addingCustomNotebook, setAddingCustomNotebook] = useState(false);
+  const [membersEvent, setMembersEvent] = useState<EventRow | null>(null);
+  const [members, setMembers] = useState<EventMember[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [membersError, setMembersError] = useState<string | null>(null);
+  const [membersMessage, setMembersMessage] = useState<string | null>(null);
+  const [addMemberEmails, setAddMemberEmails] = useState<string[]>([]);
+  const [addingMembers, setAddingMembers] = useState(false);
+  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
+  const [editingEvent, setEditingEvent] = useState<EventRow | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editDepartment, setEditDepartment] = useState<EventDepartment | "">(
+    "",
+  );
+  const [editStartsAt, setEditStartsAt] = useState("");
+  const [editEndsAt, setEditEndsAt] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const canAccess =
     session.authenticated && session.user?.role === "admin";
@@ -117,6 +183,59 @@ export default function AdminEventsPage() {
     });
   }
 
+  function addCustomNotebookDraft() {
+    setCustomNotebooks((prev) => [
+      ...prev,
+      {
+        key: `custom-${Date.now()}-${prev.length}`,
+        title: "",
+        description: "",
+        files: [],
+      },
+    ]);
+  }
+
+  function updateCustomNotebookDraft(
+    key: string,
+    patch: Partial<Pick<CustomNotebookDraft, "title" | "description">>,
+  ) {
+    setCustomNotebooks((prev) =>
+      prev.map((nb) => (nb.key === key ? { ...nb, ...patch } : nb)),
+    );
+  }
+
+  function addFilesToCustomNotebook(key: string, fileList: FileList | null) {
+    if (!fileList?.length) return;
+    const incoming = Array.from(fileList);
+    setCustomNotebooks((prev) =>
+      prev.map((nb) => {
+        if (nb.key !== key) return nb;
+        const existing = new Set(nb.files.map((f) => f.name.toLowerCase()));
+        const merged = [...nb.files];
+        for (const file of incoming) {
+          if (existing.has(file.name.toLowerCase())) continue;
+          merged.push(file);
+          existing.add(file.name.toLowerCase());
+        }
+        return { ...nb, files: merged };
+      }),
+    );
+  }
+
+  function removeFileFromCustomNotebook(key: string, fileName: string) {
+    setCustomNotebooks((prev) =>
+      prev.map((nb) =>
+        nb.key === key
+          ? { ...nb, files: nb.files.filter((f) => f.name !== fileName) }
+          : nb,
+      ),
+    );
+  }
+
+  function removeCustomNotebookDraft(key: string) {
+    setCustomNotebooks((prev) => prev.filter((nb) => nb.key !== key));
+  }
+
   async function openFileManager(event: EventRow) {
     setFileManagerEvent(event);
     setFileManagerNotebooks([]);
@@ -142,13 +261,117 @@ export default function AdminEventsPage() {
     load();
   }
 
+  async function loadMembers(event: EventRow) {
+    setMembersLoading(true);
+    setMembersError(null);
+    const res = await fetch(`/api/admin/events/${event.slug}/members`);
+    const data = await res.json().catch(() => ({}));
+    setMembersLoading(false);
+    if (!res.ok) {
+      setMembers([]);
+      setMembersError(data.error ?? "Could not load members.");
+      return;
+    }
+    setMembers(data.members ?? []);
+  }
+
+  async function openMembersManager(event: EventRow) {
+    setMembersEvent(event);
+    setMembers([]);
+    setMembersError(null);
+    setMembersMessage(null);
+    setAddMemberEmails([]);
+    await loadMembers(event);
+  }
+
+  function closeMembersManager() {
+    if (addingMembers || removingMemberId) return;
+    setMembersEvent(null);
+    setMembers([]);
+    setMembersError(null);
+    setMembersMessage(null);
+    setAddMemberEmails([]);
+  }
+
+  async function addMembers(e: React.FormEvent) {
+    e.preventDefault();
+    if (!membersEvent) return;
+    if (addMemberEmails.length === 0) {
+      setMembersMessage("Add at least one email.");
+      return;
+    }
+
+    setAddingMembers(true);
+    setMembersMessage(null);
+    setMembersError(null);
+    const res = await fetch(`/api/admin/events/${membersEvent.slug}/members`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ emails: addMemberEmails }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setAddingMembers(false);
+
+    if (!res.ok) {
+      setMembersError(data.error ?? "Could not add members.");
+      return;
+    }
+
+    const parts: string[] = [];
+    if (data.added?.length) {
+      parts.push(`Added: ${data.added.join(", ")}`);
+    }
+    if (data.alreadyMembers?.length) {
+      parts.push(`Already enrolled: ${data.alreadyMembers.join(", ")}`);
+    }
+    setMembersMessage(parts.join(". ") || "No changes.");
+    setAddMemberEmails([]);
+    await loadMembers(membersEvent);
+  }
+
+  async function removeMember(member: EventMember) {
+    if (!membersEvent) return;
+    setRemovingMemberId(member.id);
+    setMembersError(null);
+    const res = await fetch(
+      `/api/admin/events/${membersEvent.slug}/members/${member.id}`,
+      { method: "DELETE" },
+    );
+    const data = await res.json().catch(() => ({}));
+    setRemovingMemberId(null);
+    if (!res.ok) {
+      setMembersError(data.error ?? "Could not remove member.");
+      return;
+    }
+    setMembersMessage(`Removed ${member.email}.`);
+    await loadMembers(membersEvent);
+  }
+
   async function createEvent(e: React.FormEvent) {
     e.preventDefault();
     setCreating(true);
     setCreateMessage(null);
 
-    if (selectedTemplates.size === 0) {
-      setCreateMessage("Select at least one notebook.");
+    const customs = customNotebooks
+      .map((nb) => ({
+        clientKey: nb.key,
+        title: nb.title.trim(),
+        description: nb.description.trim(),
+        files: nb.files,
+      }))
+      .filter((nb) => nb.title);
+
+    if (selectedTemplates.size === 0 && customs.length === 0) {
+      setCreateMessage(
+        "Select at least one template notebook or add a custom notebook.",
+      );
+      setCreating(false);
+      return;
+    }
+
+    if (!department) {
+      setCreateMessage("Select a department for this project.");
+      setCreating(false);
       return;
     }
 
@@ -159,44 +382,187 @@ export default function AdminEventsPage() {
         slug,
         title,
         description,
-        memberEmails: memberEmails
-          .split(/[\n,]+/)
-          .map((s) => s.trim())
-          .filter(Boolean),
-        notebookTemplates: [...selectedTemplates],
+        department,
+        startsAt: startsAt || null,
+        endsAt: endsAt || null,
+        memberEmails,
+        notebookTemplates: Array.from(selectedTemplates),
+        customNotebooks: customs.map(({ clientKey, title, description }) => ({
+          clientKey,
+          title,
+          description,
+        })),
       }),
     });
     const data = await res.json();
-    setCreating(false);
 
     if (!res.ok) {
+      setCreating(false);
       setCreateMessage(data.error ?? "Could not create event.");
       return;
     }
 
+    const created: EventRow = {
+      id: data.id,
+      slug: data.slug,
+      title: data.title,
+      description: data.description ?? null,
+      department: data.department ?? department,
+      created_by: data.created_by ?? session.user?.id ?? null,
+      created_by_name: data.created_by_name ?? session.user?.name ?? null,
+      created_by_email: data.created_by_email ?? session.user?.email ?? null,
+      canEdit: true,
+      notebookCount: (data.notebooks ?? []).length,
+    };
+
+    const provisionedCustoms = Array.isArray(data.customNotebooks)
+      ? (data.customNotebooks as Array<{
+          clientKey?: string;
+          notebookId: string;
+          title: string;
+        }>)
+      : [];
+
+    let uploadedCount = 0;
+    const uploadErrors: string[] = [];
+    for (const custom of customs) {
+      if (custom.files.length === 0) continue;
+      const match =
+        provisionedCustoms.find((p) => p.clientKey === custom.clientKey) ??
+        provisionedCustoms.find(
+          (p) => p.title.toLowerCase() === custom.title.toLowerCase(),
+        );
+      if (!match) {
+        uploadErrors.push(`Could not match notebook "${custom.title}" for uploads.`);
+        continue;
+      }
+      for (const file of custom.files) {
+        const form = new FormData();
+        form.append("file", file);
+        const up = await fetch(
+          `/api/admin/events/${created.slug}/notebooks/${match.notebookId}/files`,
+          { method: "POST", body: form },
+        );
+        if (!up.ok) {
+          const errBody = await up.json().catch(() => ({}));
+          uploadErrors.push(
+            errBody.error ?? `Failed to upload ${file.name} to ${custom.title}.`,
+          );
+        } else {
+          uploadedCount += 1;
+        }
+      }
+    }
+
+    setCreating(false);
     setCreateMessage(
       `Created "${data.title}" with ${(data.notebooks ?? []).join(", ") || "no notebooks"}.` +
         (data.copiedFiles
-          ? ` Copied ${data.copiedFiles} document(s) from seed/.`
+          ? ` Copied ${data.copiedFiles} template document(s).`
           : "") +
-        ` Members added: ${(data.membersAdded ?? []).join(", ") || "none"}.` +
-        (data.membersMissing?.length
-          ? ` Missing users: ${data.membersMissing.join(", ")} — create them first via Users API or HAWKCHAT_EVENT_USERS.`
+        (uploadedCount
+          ? ` Uploaded ${uploadedCount} file(s) to custom notebooks.`
           : "") +
-        ` ${data.setupHint ?? ""}`,
+        (uploadErrors.length ? ` ${uploadErrors.join(" ")}` : "") +
+        ` Members added: ${(data.membersAdded ?? []).join(", ") || "none"}.`,
     );
     setSlug("");
     setTitle("");
     setDescription("");
-    setMemberEmails("");
+    setStartsAt("");
+    setEndsAt("");
+    setDepartment("football-events");
+    setMemberEmails([]);
+    setCustomNotebooks([]);
     setSelectedTemplates(new Set(NOTEBOOK_TEMPLATE_IDS));
-    load();
+    await load();
+    if (customs.length > 0) {
+      await openFileManager(created);
+    }
+  }
+
+  async function addCustomNotebookToOpenEvent(e: React.FormEvent) {
+    e.preventDefault();
+    if (!fileManagerEvent) return;
+    const notebookTitle = newCustomTitle.trim();
+    if (!notebookTitle) {
+      setFileManagerError("Enter a notebook name.");
+      return;
+    }
+
+    setAddingCustomNotebook(true);
+    setFileManagerError(null);
+    const res = await fetch(
+      `/api/admin/events/${fileManagerEvent.slug}/notebooks`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: notebookTitle,
+          description: newCustomDescription.trim(),
+        }),
+      },
+    );
+    const data = await res.json().catch(() => ({}));
+    setAddingCustomNotebook(false);
+
+    if (!res.ok) {
+      setFileManagerError(data.error ?? "Could not add custom notebook.");
+      return;
+    }
+
+    setNewCustomTitle("");
+    setNewCustomDescription("");
+    await openFileManager(fileManagerEvent);
   }
 
   function openDeleteDialog(event: EventRow) {
     setPendingDelete(event);
     setDeleteConfirm("");
     setDeleteError(null);
+  }
+
+  function openEditDialog(event: EventRow) {
+    setEditingEvent(event);
+    setEditTitle(event.title);
+    setEditDescription(event.description ?? "");
+    setEditDepartment(
+      (event.department as EventDepartment | null) ?? "football-events",
+    );
+    setEditStartsAt(event.starts_at ?? "");
+    setEditEndsAt(event.ends_at ?? "");
+    setEditError(null);
+  }
+
+  function closeEditDialog() {
+    setEditingEvent(null);
+    setEditError(null);
+  }
+
+  async function saveEventEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingEvent || !editDepartment) return;
+    setSavingEdit(true);
+    setEditError(null);
+    const res = await fetch(`/api/events/${editingEvent.slug}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: editTitle,
+        description: editDescription,
+        department: editDepartment,
+        startsAt: editStartsAt || null,
+        endsAt: editEndsAt || null,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setSavingEdit(false);
+    if (!res.ok) {
+      setEditError(data.error ?? "Could not save changes.");
+      return;
+    }
+    closeEditDialog();
+    await load();
   }
 
   function closeDeleteDialog() {
@@ -236,9 +602,9 @@ export default function AdminEventsPage() {
           Manage events
         </h2>
         <p className="mb-8 text-sm text-hawk-300">
-          Create tournament spaces with their own notebooks. Event members sign in
-          at Staff sign in and land directly in their event — the World Cup LAN
-          demo at <span className="text-hawk-100">/</span> is unchanged.
+          Create project spaces with their own notebooks. Add member emails —
+          they create an account with a password, then you enroll them so they see
+          the projects they are assigned to.
         </p>
 
         {session.loading || loading ? (
@@ -255,10 +621,15 @@ export default function AdminEventsPage() {
           </div>
         ) : (
           <>
+            {/* --- Create event form (templates, custom notebooks, members) --- */}
             <form onSubmit={createEvent} className="hawk-card mb-10 space-y-4 p-6">
               <h3 className="font-display text-lg font-bold text-hawk-50">
                 Create event
               </h3>
+              <p className="text-xs text-hawk-400">
+                You will be tagged as the creator. Only you and a super admin can
+                edit the event afterward.
+              </p>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-sm text-hawk-200">Slug</label>
@@ -292,14 +663,67 @@ export default function AdminEventsPage() {
                   className="hawk-input w-full px-3 py-2 text-sm"
                 />
               </div>
+              <div>
+                <label className="mb-1 block text-sm text-hawk-200">
+                  Department
+                </label>
+                <select
+                  value={department}
+                  onChange={(e) =>
+                    setDepartment(e.target.value as EventDepartment | "")
+                  }
+                  required
+                  className="hawk-input w-full px-3 py-2 text-sm"
+                >
+                  {EVENT_DEPARTMENTS.map((id) => (
+                    <option key={id} value={id}>
+                      {EVENT_DEPARTMENT_LABELS[id]}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-hawk-400">
+                  Shown as a colored label on Your projects and used for
+                  filtering.
+                </p>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm text-hawk-200">
+                    Start date
+                  </label>
+                  <input
+                    type="date"
+                    value={startsAt}
+                    onChange={(e) => setStartsAt(e.target.value)}
+                    className="hawk-input w-full px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm text-hawk-200">
+                    End date
+                  </label>
+                  <input
+                    type="date"
+                    value={endsAt}
+                    onChange={(e) => setEndsAt(e.target.value)}
+                    min={startsAt || undefined}
+                    className="hawk-input w-full px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-hawk-400">
+                Members can ask questions only between these dates. Leave blank
+                for always-active. After the end date, the project stays visible
+                as Previous (browse only).
+              </p>
               <fieldset className="space-y-3">
                 <legend className="mb-1 block text-sm font-medium text-hawk-200">
                   Notebooks
                 </legend>
                 <p className="text-xs text-hawk-400">
-                  Choose notebooks for this event. Expand a folder to add or
-                  remove files in the shared library — they are copied when the
-                  event is created.
+                  Choose shared template notebooks (copied into this project),
+                  and/or add custom notebooks below with documents. You can also
+                  manage files later from each project.
                 </p>
                 {templatesLoading ? (
                   <p className="text-sm text-hawk-400">Loading templates…</p>
@@ -375,31 +799,159 @@ export default function AdminEventsPage() {
                     })}
                   </ul>
                 )}
+
+                <div className="rounded-lg border border-hawk-600 bg-hawk-900/40 p-4">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-semibold text-hawk-50">
+                        Custom notebooks
+                      </p>
+                      <p className="mt-0.5 text-xs text-hawk-400">
+                        For project-specific content. Set a name, description,
+                        and optionally upload documents now.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={addCustomNotebookDraft}
+                      className="hawk-btn-secondary px-3 py-1.5 text-xs"
+                    >
+                      + Add custom notebook
+                    </button>
+                  </div>
+                  {customNotebooks.length === 0 ? (
+                    <p className="text-xs text-hawk-500">
+                      No custom notebooks yet.
+                    </p>
+                  ) : (
+                    <ul className="space-y-3">
+                      {customNotebooks.map((nb) => (
+                        <li
+                          key={nb.key}
+                          className="space-y-2 rounded-lg border border-hawk-700 bg-hawk-950/50 p-3"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <label className="block min-w-0 flex-1 text-sm text-hawk-200">
+                              Name
+                              <input
+                                value={nb.title}
+                                onChange={(e) =>
+                                  updateCustomNotebookDraft(nb.key, {
+                                    title: e.target.value,
+                                  })
+                                }
+                                required
+                                placeholder="e.g. Venue logistics"
+                                className="hawk-input mt-1 w-full px-3 py-2 text-sm"
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => removeCustomNotebookDraft(nb.key)}
+                              className="mt-6 shrink-0 rounded-lg border border-orange/40 bg-orange/10 px-3 py-1.5 text-xs text-orange-light"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                          <label className="block text-sm text-hawk-200">
+                            Description
+                            <textarea
+                              value={nb.description}
+                              onChange={(e) =>
+                                updateCustomNotebookDraft(nb.key, {
+                                  description: e.target.value,
+                                })
+                              }
+                              rows={2}
+                              placeholder="What this notebook is for"
+                              className="hawk-input mt-1 w-full px-3 py-2 text-sm"
+                            />
+                          </label>
+                          <div className="rounded-md border border-hawk-700 bg-hawk-950/60 p-3">
+                            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-xs font-semibold uppercase tracking-widest text-hawk-400">
+                                Documents
+                              </p>
+                              <label className="hawk-btn-secondary cursor-pointer px-3 py-1.5 text-xs">
+                                Add files
+                                <input
+                                  type="file"
+                                  multiple
+                                  accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    addFilesToCustomNotebook(
+                                      nb.key,
+                                      e.target.files,
+                                    );
+                                    e.target.value = "";
+                                  }}
+                                />
+                              </label>
+                            </div>
+                            {nb.files.length === 0 ? (
+                              <p className="text-xs text-hawk-500">
+                                No files staged yet. You can also add more later
+                                via Manage files.
+                              </p>
+                            ) : (
+                              <ul className="space-y-1">
+                                {nb.files.map((file) => (
+                                  <li
+                                    key={file.name}
+                                    className="flex items-center justify-between gap-2 text-sm text-hawk-200"
+                                  >
+                                    <span className="truncate">
+                                      {file.name}
+                                      <span className="ml-2 text-xs text-hawk-500">
+                                        ({Math.max(1, Math.round(file.size / 1024))}{" "}
+                                        KB)
+                                      </span>
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        removeFileFromCustomNotebook(
+                                          nb.key,
+                                          file.name,
+                                        )
+                                      }
+                                      className="shrink-0 text-xs text-orange-light hover:underline"
+                                    >
+                                      Remove
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </fieldset>
-              <div>
-                <label className="mb-1 block text-sm text-hawk-200">
-                  Member emails (comma or newline)
-                </label>
-                <textarea
-                  value={memberEmails}
-                  onChange={(e) => setMemberEmails(e.target.value)}
-                  rows={2}
-                  placeholder="test@hawkeyeinnovations.com"
-                  className="hawk-input w-full px-3 py-2 text-sm"
-                />
-              </div>
+              <MemberEmailPicker
+                emails={memberEmails}
+                onChange={setMemberEmails}
+              />
               {createMessage && (
                 <p className="text-sm text-hawk-200">{createMessage}</p>
               )}
               <button
                 type="submit"
-                disabled={creating || selectedTemplates.size === 0}
+                disabled={
+                  creating ||
+                  (selectedTemplates.size === 0 &&
+                    customNotebooks.every((nb) => !nb.title.trim()))
+                }
                 className="hawk-btn-primary px-5 py-2 text-sm disabled:opacity-60"
               >
                 {creating ? "Creating…" : "Create event"}
               </button>
             </form>
 
+            {/* --- Existing events list --- */}
             <h3 className="mb-4 text-sm font-bold uppercase tracking-widest text-orange">
               Existing events
             </h3>
@@ -407,23 +959,53 @@ export default function AdminEventsPage() {
               <p className="text-hawk-400">No events yet.</p>
             ) : (
               <ul className="space-y-3">
-                {events.map((event) => (
+                {events.map((event) => {
+                  const canEdit = Boolean(event.canEdit);
+                  const createdBy =
+                    event.created_by_name ||
+                    event.created_by_email ||
+                    null;
+                  return (
                   <li key={event.id} className="hawk-card p-5">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
-                        <h4 className="font-display text-lg font-bold text-hawk-50">
-                          {event.title}
-                        </h4>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="font-display text-lg font-bold text-hawk-50">
+                            {event.title}
+                          </h4>
+                          <span
+                            className={`rounded border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${departmentStyle(event.department)}`}
+                          >
+                            {departmentLabel(event.department)}
+                          </span>
+                        </div>
                         <p className="mt-1 font-mono text-xs text-hawk-400">
                           /events/{event.slug}
                         </p>
+                        {createdBy && (
+                          <p className="mt-1 text-xs text-hawk-300">
+                            Created by{" "}
+                            <span className="font-medium text-hawk-100">
+                              {createdBy}
+                            </span>
+                          </p>
+                        )}
                         {event.description && (
                           <p className="mt-2 text-sm text-hawk-300">
                             {event.description}
                           </p>
                         )}
                         <p className="mt-2 text-xs text-hawk-400">
-                          {event.notebookCount ?? 0} notebook(s) in manifest
+                          {event.dateRangeLabel
+                            ? `${event.dateRangeLabel} · `
+                            : ""}
+                          {event.notebookCount ?? 0} notebook(s)
+                          {event.timeStatus === "past"
+                            ? " · Previous"
+                            : event.timeStatus === "upcoming"
+                              ? " · Upcoming"
+                              : " · Active"}
+                          {!canEdit ? " · View only for you" : ""}
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -433,34 +1015,165 @@ export default function AdminEventsPage() {
                         >
                           Open space
                         </Link>
-                        {event.slug !== WORLD_CUP_EVENT_SLUG && (
+                        {canEdit && (
                           <>
                             <button
                               type="button"
-                              onClick={() => openFileManager(event)}
+                              onClick={() => openEditDialog(event)}
                               className="hawk-btn-secondary px-4 py-2 text-sm"
                             >
-                              Manage files
+                              Edit event
                             </button>
                             <button
                               type="button"
-                              onClick={() => openDeleteDialog(event)}
-                              className="rounded-lg border border-orange/40 bg-orange/10 px-4 py-2 text-sm font-medium text-orange-light transition hover:border-orange/60 hover:bg-orange/15"
+                              onClick={() => openMembersManager(event)}
+                              className="hawk-btn-secondary px-4 py-2 text-sm"
                             >
-                              Delete event
+                              Manage members
                             </button>
+                            {event.slug !== WORLD_CUP_EVENT_SLUG && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => openFileManager(event)}
+                                  className="hawk-btn-secondary px-4 py-2 text-sm"
+                                >
+                                  Manage files
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => openDeleteDialog(event)}
+                                  className="rounded-lg border border-orange/40 bg-orange/10 px-4 py-2 text-sm font-medium text-orange-light transition hover:border-orange/60 hover:bg-orange/15"
+                                >
+                                  Delete event
+                                </button>
+                              </>
+                            )}
                           </>
                         )}
                       </div>
                     </div>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
           </>
         )}
       </main>
 
+      {/* --- Edit event modal --- */}
+      {editingEvent && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-hawk-950/80 px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="edit-event-title"
+        >
+          <form
+            onSubmit={saveEventEdit}
+            className="hawk-card w-full max-w-lg p-6"
+          >
+            <h3
+              id="edit-event-title"
+              className="font-display text-lg font-bold text-hawk-50"
+            >
+              Edit event
+            </h3>
+            <p className="mt-1 text-sm text-hawk-400">
+              /events/{editingEvent.slug}
+            </p>
+            <div className="mt-4 space-y-4">
+              <div>
+                <label className="mb-1 block text-sm text-hawk-200">Title</label>
+                <input
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  required
+                  className="hawk-input w-full px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-hawk-200">
+                  Description
+                </label>
+                <textarea
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  rows={2}
+                  className="hawk-input w-full px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-hawk-200">
+                  Department
+                </label>
+                <select
+                  value={editDepartment}
+                  onChange={(e) =>
+                    setEditDepartment(e.target.value as EventDepartment | "")
+                  }
+                  required
+                  className="hawk-input w-full px-3 py-2 text-sm"
+                >
+                  {EVENT_DEPARTMENTS.map((id) => (
+                    <option key={id} value={id}>
+                      {EVENT_DEPARTMENT_LABELS[id]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm text-hawk-200">
+                    Start date
+                  </label>
+                  <input
+                    type="date"
+                    value={editStartsAt}
+                    onChange={(e) => setEditStartsAt(e.target.value)}
+                    className="hawk-input w-full px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm text-hawk-200">
+                    End date
+                  </label>
+                  <input
+                    type="date"
+                    value={editEndsAt}
+                    onChange={(e) => setEditEndsAt(e.target.value)}
+                    min={editStartsAt || undefined}
+                    className="hawk-input w-full px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+            {editError && (
+              <p className="mt-3 text-sm text-orange-light">{editError}</p>
+            )}
+            <div className="mt-6 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeEditDialog}
+                disabled={savingEdit}
+                className="hawk-btn-secondary px-4 py-2 text-sm disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={savingEdit || !editTitle.trim() || !editDepartment}
+                className="hawk-btn-primary px-4 py-2 text-sm disabled:opacity-60"
+              >
+                {savingEdit ? "Saving…" : "Save changes"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* --- Delete event confirmation modal --- */}
       {pendingDelete && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-hawk-950/80 px-4"
@@ -526,6 +1239,7 @@ export default function AdminEventsPage() {
         </div>
       )}
 
+      {/* --- File manager modal (per-notebook seed files) --- */}
       {fileManagerEvent && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-hawk-950/80 px-4 py-8"
@@ -549,27 +1263,71 @@ export default function AdminEventsPage() {
             <div className="flex-1 overflow-y-auto px-6 py-4">
               {fileManagerLoading ? (
                 <p className="text-hawk-400">Loading notebooks…</p>
-              ) : fileManagerError ? (
-                <p className="text-orange-light">{fileManagerError}</p>
-              ) : fileManagerNotebooks.length === 0 ? (
-                <p className="text-hawk-400">
-                  No notebook folders for this event yet. Create the event with
-                  notebook templates first.
-                </p>
               ) : (
-                <ul className="space-y-4">
-                  {fileManagerNotebooks.map((notebook) => (
-                    <li key={notebook.notebookId}>
-                      <SeedFileExplorer
-                        apiBase={`/api/admin/events/${fileManagerEvent.slug}/notebooks/${notebook.notebookId}/files`}
-                        title={
-                          notebook.pickerLabel ?? notebook.notebookTitle
-                        }
-                        seedPath={notebook.seedPath}
-                      />
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  {fileManagerError && (
+                    <p className="mb-4 text-orange-light">{fileManagerError}</p>
+                  )}
+
+                  <form
+                    onSubmit={addCustomNotebookToOpenEvent}
+                    className="mb-6 space-y-3 rounded-lg border border-hawk-600 bg-hawk-900/40 p-4"
+                  >
+                    <p className="text-sm font-semibold text-hawk-50">
+                      Add custom notebook
+                    </p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="block text-sm text-hawk-200">
+                        Name
+                        <input
+                          value={newCustomTitle}
+                          onChange={(e) => setNewCustomTitle(e.target.value)}
+                          placeholder="e.g. Broadcast workflow"
+                          className="hawk-input mt-1 w-full px-3 py-2 text-sm"
+                        />
+                      </label>
+                      <label className="block text-sm text-hawk-200">
+                        Description
+                        <input
+                          value={newCustomDescription}
+                          onChange={(e) =>
+                            setNewCustomDescription(e.target.value)
+                          }
+                          placeholder="Optional"
+                          className="hawk-input mt-1 w-full px-3 py-2 text-sm"
+                        />
+                      </label>
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={addingCustomNotebook || !newCustomTitle.trim()}
+                      className="hawk-btn-primary px-4 py-2 text-sm disabled:opacity-60"
+                    >
+                      {addingCustomNotebook ? "Adding…" : "Add notebook"}
+                    </button>
+                  </form>
+
+                  {fileManagerNotebooks.length === 0 ? (
+                    <p className="text-hawk-400">
+                      No notebook folders yet. Add a custom notebook above or
+                      recreate the event with templates.
+                    </p>
+                  ) : (
+                    <ul className="space-y-4">
+                      {fileManagerNotebooks.map((notebook) => (
+                        <li key={notebook.notebookId}>
+                          <SeedFileExplorer
+                            apiBase={`/api/admin/events/${fileManagerEvent.slug}/notebooks/${notebook.notebookId}/files`}
+                            title={
+                              notebook.pickerLabel ?? notebook.notebookTitle
+                            }
+                            seedPath={notebook.seedPath}
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
               )}
             </div>
             <div className="border-t border-hawk-700 px-6 py-4 text-right">
@@ -577,6 +1335,106 @@ export default function AdminEventsPage() {
                 type="button"
                 onClick={closeFileManager}
                 className="hawk-btn-secondary px-4 py-2 text-sm"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- Manage members modal --- */}
+      {membersEvent && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-hawk-950/80 px-4 py-8"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="members-manager-title"
+        >
+          <div className="hawk-card flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden">
+            <div className="border-b border-hawk-700 px-6 py-4">
+              <h3
+                id="members-manager-title"
+                className="font-display text-lg font-bold text-hawk-50"
+              >
+                Members — {membersEvent.title}
+              </h3>
+              <p className="mt-1 text-sm text-hawk-300">
+                Enrolled people sign in with email only. New emails create
+                accounts automatically.
+              </p>
+            </div>
+            <div className="flex-1 space-y-5 overflow-y-auto px-6 py-4">
+              <form onSubmit={addMembers} className="space-y-3">
+                <MemberEmailPicker
+                  emails={addMemberEmails}
+                  onChange={setAddMemberEmails}
+                  excludeEmails={members.map((m) => m.email)}
+                  label="Add members"
+                />
+                <button
+                  type="submit"
+                  disabled={addingMembers || addMemberEmails.length === 0}
+                  className="hawk-btn-primary px-4 py-2 text-sm disabled:opacity-60"
+                >
+                  {addingMembers ? "Adding…" : "Add members"}
+                </button>
+              </form>
+
+              {membersMessage && (
+                <p className="text-sm text-hawk-200">{membersMessage}</p>
+              )}
+              {membersError && (
+                <p className="text-sm text-orange-light">{membersError}</p>
+              )}
+
+              <div>
+                <h4 className="mb-2 text-sm font-bold uppercase tracking-widest text-orange">
+                  Current members ({members.length})
+                </h4>
+                {membersLoading ? (
+                  <p className="text-hawk-400">Loading…</p>
+                ) : members.length === 0 ? (
+                  <p className="text-sm text-hawk-400">
+                    No members enrolled yet.
+                  </p>
+                ) : (
+                  <ul className="space-y-2">
+                    {members.map((member) => (
+                      <li
+                        key={member.id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-hawk-700 bg-hawk-900/50 px-3 py-2"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm text-hawk-50">
+                            {member.email}
+                          </p>
+                          <p className="text-xs text-hawk-400">
+                            {member.name} · {member.role}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeMember(member)}
+                          disabled={removingMemberId === member.id}
+                          className="shrink-0 rounded-lg border border-orange/40 bg-orange/10 px-3 py-1.5 text-xs font-medium text-orange-light transition hover:bg-orange/15 disabled:opacity-60"
+                        >
+                          {removingMemberId === member.id
+                            ? "Removing…"
+                            : "Remove"}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+            <div className="border-t border-hawk-700 px-6 py-4 text-right">
+              <button
+                type="button"
+                onClick={closeMembersManager}
+                disabled={addingMembers || Boolean(removingMemberId)}
+                className="hawk-btn-secondary px-4 py-2 text-sm disabled:opacity-60"
               >
                 Done
               </button>

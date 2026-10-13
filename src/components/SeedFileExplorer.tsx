@@ -1,5 +1,9 @@
 "use client";
 
+/**
+ * List/upload/delete seed files for a notebook or template folder.
+ * Debug file explorer API base path, upload accept types, or refresh after change.
+ */
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type SeedFileExplorerProps = {

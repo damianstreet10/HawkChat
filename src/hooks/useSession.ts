@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * Client session + permissions from `/api/auth/me`.
+ * Debug missing nav links, wrong role gates, or stuck `loading` — refresh()
+ * after login/logout; defaults assume open access when auth is not required.
+ */
 import { useCallback, useEffect, useState } from "react";
 
 export type SessionPermissions = {
@@ -7,6 +12,8 @@ export type SessionPermissions = {
   canManageNotebooks: boolean;
   canManageUsers: boolean;
   canViewActivity: boolean;
+  canManageAdminRoles: boolean;
+  canDeleteUsers: boolean;
 };
 
 export type SessionUser = {
@@ -29,6 +36,8 @@ const DEFAULT_PERMISSIONS: SessionPermissions = {
   canManageNotebooks: true,
   canManageUsers: true,
   canViewActivity: false,
+  canManageAdminRoles: false,
+  canDeleteUsers: false,
 };
 
 export function useSession(): SessionState & { refresh: () => void } {

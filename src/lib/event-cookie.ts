@@ -1,5 +1,10 @@
+/**
+ * Persist the active event slug in the hawkchat_event cookie (UI context).
+ * Look here when the wrong event stays selected after navigation or cookie clear.
+ */
 export const EVENT_CONTEXT_COOKIE = "hawkchat_event";
 
+/** Set httpOnly event-context cookie (30 days). */
 export function eventCookieOptions(slug: string) {
   const maxAge = 60 * 60 * 24 * 30;
   return {

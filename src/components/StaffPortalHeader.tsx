@@ -1,5 +1,9 @@
 "use client";
 
+/**
+ * Staff portal header (projects / manage events / members / logout).
+ * Debug active-tab highlighting or missing Manage links — `canManageUsers`.
+ */
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
@@ -13,6 +17,7 @@ export function StaffPortalHeader({ title }: { title?: string }) {
   const [loggingOut, setLoggingOut] = useState(false);
   const onPicker = pathname === "/events";
   const onManageEvents = pathname === "/admin/events";
+  const onManageMembers = pathname === "/admin/members";
   const canManageEvents =
     session.authenticated && session.permissions.canManageUsers;
 
@@ -35,17 +40,17 @@ export function StaffPortalHeader({ title }: { title?: string }) {
           <HawkLogo size={28} />
           <div>
             <p className="text-xs font-bold uppercase tracking-widest text-orange">
-              HawkChat staff
+              HawkChat
             </p>
             <h1 className="font-display text-lg font-bold uppercase tracking-wide text-hawk-50">
-              {title ?? "Events"}
+              {title ?? "Projects"}
             </h1>
           </div>
         </div>
         <div className="flex items-center gap-2">
           {!onPicker && (
             <Link href="/events" className="hawk-btn-secondary px-4 py-2 text-sm">
-              All events
+              All projects
             </Link>
           )}
           {canManageEvents && !onManageEvents && (
@@ -54,6 +59,14 @@ export function StaffPortalHeader({ title }: { title?: string }) {
               className="hawk-btn-secondary px-4 py-2 text-sm"
             >
               Manage events
+            </Link>
+          )}
+          {canManageEvents && !onManageMembers && (
+            <Link
+              href="/admin/members"
+              className="hawk-btn-secondary px-4 py-2 text-sm"
+            >
+              Manage members
             </Link>
           )}
           <button

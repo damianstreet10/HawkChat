@@ -1,6 +1,17 @@
+/**
+ * Session auth, cookie helpers, and role guards for API routes.
+ * Look here when login fails, sessions expire unexpectedly, or requireAuth/requireAdmin
+ * returns 401/403 — check HAWKCHAT_REQUIRE_AUTH and the hawkchat_session cookie.
+ * Account passwords live in users.password_hash (see passwords.ts + /api/auth/register).
+ */
 import { createHash, randomBytes } from "crypto";
 import { cookies } from "next/headers";
 import { getDb } from "./db";
+import {
+  hashPassword,
+  validatePasswordStrength,
+  verifyPassword,
+} from "./passwords";
 import {
   canManageNotebooks,
   canManageUsers,
@@ -17,6 +28,12 @@ export type AuthUser = {
   role: Role;
 };
 
+type UserAuthRow = AuthUser & {
+  password_hash: string | null;
+};
+
+// --- Sessions & tokens ---
+
 const SESSION_COOKIE = "hawkchat_session";
 const SESSION_DAYS = 30;
 
@@ -25,6 +42,7 @@ export function isAuthRequired(): boolean {
   return process.env.HAWKCHAT_REQUIRE_AUTH === "true";
 }
 
+/** SHA-256 hex digest used for token_hash columns / legacy tokens. */
 export function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
@@ -33,6 +51,166 @@ export function generateAccessToken(): string {
   return randomBytes(24).toString("hex");
 }
 
+/** Display name from email local-part (e.g. jane.doe → Jane Doe). */
+export function displayNameFromEmail(email: string): string {
+  const local = email.split("@")[0] ?? "User";
+  const name = local
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
+    .join(" ");
+  return name || "User";
+}
+
+// --- Users ---
+
+/** Lookup only — does not create accounts. */
+export function getUserByEmail(email: string): AuthUser | null {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) return null;
+  const db = getDb();
+  const row = db
+    .prepare(`SELECT id, email, name, role FROM users WHERE email = ?`)
+    .get(normalized) as AuthUser | undefined;
+  return row ?? null;
+}
+
+function getUserAuthRowByEmail(email: string): UserAuthRow | null {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) return null;
+  const db = getDb();
+  const row = db
+    .prepare(
+      `SELECT id, email, name, role, password_hash FROM users WHERE email = ?`,
+    )
+    .get(normalized) as UserAuthRow | undefined;
+  return row ?? null;
+}
+
+/**
+ * Enroll only users who already registered. Does not create accounts.
+ * Admins should pick from the members list after someone signs up.
+ */
+export function requireRegisteredUserByEmail(email: string): AuthUser {
+  const user = getUserByEmail(email);
+  if (!user) {
+    throw new AuthError(
+      `${email.trim().toLowerCase()} has no HawkChat account yet. Ask them to create one at Create account first.`,
+      400,
+    );
+  }
+  return user;
+}
+
+/**
+ * @deprecated Prefer requireRegisteredUserByEmail — does not create passwordless accounts.
+ */
+export function findOrCreateUserByEmail(email: string): AuthUser {
+  return requireRegisteredUserByEmail(email);
+}
+
+/**
+ * Create a new account, or set a password on a legacy account that has none yet.
+ */
+export function registerAccount(opts: {
+  email: string;
+  password: string;
+  name?: string;
+}): AuthUser & { claimed: boolean } {
+  const email = opts.email.trim().toLowerCase();
+  if (!email || !email.includes("@")) {
+    throw new AuthError("Valid email required", 400);
+  }
+
+  const strength = validatePasswordStrength(opts.password);
+  if (strength) {
+    throw new AuthError(strength, 400);
+  }
+
+  const existing = getUserAuthRowByEmail(email);
+  const passwordHash = hashPassword(opts.password);
+  const db = getDb();
+
+  if (existing) {
+    if (existing.password_hash) {
+      throw new AuthError(
+        "An account with this email already exists. Sign in instead.",
+        409,
+      );
+    }
+    const name =
+      typeof opts.name === "string" && opts.name.trim()
+        ? opts.name.trim()
+        : existing.name;
+    db.prepare(
+      `UPDATE users SET password_hash = ?, name = ? WHERE id = ?`,
+    ).run(passwordHash, name, existing.id);
+    return {
+      id: existing.id,
+      email: existing.email,
+      name,
+      role: existing.role,
+      claimed: true,
+    };
+  }
+
+  const { v4: uuidv4 } = require("uuid") as typeof import("uuid");
+  const id = uuidv4();
+  const name =
+    typeof opts.name === "string" && opts.name.trim()
+      ? opts.name.trim()
+      : displayNameFromEmail(email);
+  const now = new Date().toISOString();
+  const tokenHash = hashToken(`password-account:${email}`);
+
+  db.prepare(
+    `INSERT INTO users (id, email, name, role, token_hash, created_at, password_hash)
+     VALUES (?, ?, ?, 'viewer', ?, ?, ?)`,
+  ).run(id, email, name, tokenHash, now, passwordHash);
+
+  return { id, email, name, role: "viewer", claimed: false };
+}
+
+/** Verify email + password for login. */
+export function authenticateWithPassword(
+  email: string,
+  password: string,
+): AuthUser {
+  const row = getUserAuthRowByEmail(email);
+  if (!row) {
+    throw new AuthError("Invalid email or password.", 401);
+  }
+  if (!row.password_hash) {
+    throw new AuthError(
+      "This account does not have a password yet. Use Create account with this email to set one.",
+      403,
+    );
+  }
+  if (!verifyPassword(password, row.password_hash)) {
+    throw new AuthError("Invalid email or password.", 401);
+  }
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    role: row.role,
+  };
+}
+
+/** Set or replace password (admin reset or authenticated change). */
+export function setUserPassword(userId: string, password: string): void {
+  const strength = validatePasswordStrength(password);
+  if (strength) {
+    throw new AuthError(strength, 400);
+  }
+  const db = getDb();
+  db.prepare(`UPDATE users SET password_hash = ? WHERE id = ?`).run(
+    hashPassword(password),
+    userId,
+  );
+}
+
+/** Create a DB session row and return the raw session id (for the cookie). */
 export function createSession(userId: string): string {
   const db = getDb();
   const { v4: uuidv4 } = require("uuid") as typeof import("uuid");
@@ -121,6 +299,8 @@ export function revokeStaffSession(request: Request): void {
   if (sessionId) deleteSession(sessionId);
 }
 
+// --- Guards ---
+
 export class AuthError extends Error {
   status: number;
   constructor(message: string, status = 401) {
@@ -129,6 +309,9 @@ export class AuthError extends Error {
   }
 }
 
+/**
+ * Require a signed-in user, or anonymous guest when HAWKCHAT_REQUIRE_AUTH is off.
+ */
 export function requireAuth(request: Request): AuthUser {
   const user = getAuthUserFromRequest(request);
   if (user) return user;
@@ -188,6 +371,7 @@ export function requireMonitor(request: Request): AuthUser {
   return user;
 }
 
+/** Map AuthError to JSON Response; rethrow unexpected errors. */
 export function authErrorResponse(err: unknown) {
   if (err instanceof AuthError) {
     return Response.json(

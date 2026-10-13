@@ -1,3 +1,7 @@
+/**
+ * Quirk workflow statuses (new / in_progress / resolved) and filter tabs.
+ * Look here when status updates reject a value or admin tabs don't filter.
+ */
 export const QUIRK_STATUSES = ["new", "in_progress", "resolved"] as const;
 export type QuirkStatus = (typeof QUIRK_STATUSES)[number];
 

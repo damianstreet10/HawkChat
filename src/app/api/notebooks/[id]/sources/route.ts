@@ -1,14 +1,22 @@
+/**
+ * GET /api/notebooks/[id]/sources — list sources for a notebook.
+ * POST — upload file or paste text (requires upload permission + access).
+ * Callers: sources panel. Debug ingest/parse failures or requireUpload 403.
+ */
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireAuth, requireUpload } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { requireNotebookAccess } from "@/lib/event-access";
 import { ingestSource } from "@/lib/ingest";
 import { extractTextFromFile } from "@/lib/parse-document";
 
 type Params = { params: { id: string } };
 
+/** Auth + access: list sources (id, name, type, char_count). */
 export async function GET(request: Request, { params }: Params) {
   try {
-    requireAuth(request);
+    const user = requireAuth(request);
+    requireNotebookAccess(user, params.id);
   } catch (err) {
     const res = authErrorResponse(err);
     if (res) return res;
@@ -26,9 +34,11 @@ export async function GET(request: Request, { params }: Params) {
   return NextResponse.json(sources);
 }
 
+/** Upload permission: ingest multipart file or pasted text into the notebook. */
 export async function POST(request: Request, { params }: Params) {
   try {
-    requireUpload(request);
+    const user = requireUpload(request);
+    requireNotebookAccess(user, params.id);
   } catch (err) {
     const res = authErrorResponse(err);
     if (res) return res;

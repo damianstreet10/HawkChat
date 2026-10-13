@@ -1,3 +1,8 @@
+/**
+ * GET /api/admin/quirks/export — CSV export of LAN quirk reports (monitor+).
+ * Callers: quirks admin export button. Debug filters (status/category/q) and
+ * Content-Disposition / CSV formatting issues.
+ */
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireMonitor } from "@/lib/auth";
 import { getDb } from "@/lib/db";
@@ -11,6 +16,7 @@ import {
 } from "@/lib/quirk-query";
 import { isQuirkStatusFilter, type QuirkStatusFilter } from "@/lib/quirk-status";
 
+/** Monitor+: download filtered LAN quirks as CSV. */
 export async function GET(request: Request) {
   try {
     requireMonitor(request);

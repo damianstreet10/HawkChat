@@ -1,3 +1,8 @@
+/**
+ * POST /api/kit-quirks/reports — submit a kit quirk report (guest or staff).
+ * Callers: Kit Quirks form. Debug here for validation errors, missing event_slug,
+ * reference id allocation, auto-category, or notify-email failures (logged warn).
+ */
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { authErrorResponse, requireAuth } from "@/lib/auth";
@@ -15,6 +20,7 @@ import { readEventSlugFromCookie } from "@/lib/event-cookie";
 import { readGuestLabelFromCookie } from "@/lib/site-gate";
 import { isValidEmail, normalizeEmail } from "@/lib/validate-email";
 
+/** Create quirk_reports row and fire async new-report notification. */
 export async function POST(request: Request) {
   try {
     requireAuth(request);

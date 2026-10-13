@@ -1,3 +1,8 @@
+/**
+ * Deduplicate chat citations to one card per document (drop README noise).
+ * Look here when the UI shows duplicate source cards or missing citations
+ * on older messages that stored one citation per chunk.
+ */
 import type { Citation } from "./db";
 
 /** One citation per document (fixes legacy messages that stored one per chunk). */

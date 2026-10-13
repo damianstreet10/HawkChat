@@ -1,3 +1,8 @@
+/**
+ * Notify staff of new quirk reports (webhook and/or notify email via SMTP).
+ * Look here when new-report alerts don't fire — HAWKCHAT_QUIRK_WEBHOOK_URL /
+ * HAWKCHAT_QUIRK_NOTIFY_EMAIL and SMTP config.
+ */
 import { sendMailViaSmtp, smtpConfig } from "./quirk-email-smtp";
 import { QUIRK_CATEGORY_LABELS, type QuirkCategory } from "./quirk-category";
 
@@ -11,6 +16,7 @@ export type NewQuirkNotification = {
   category: QuirkCategory | null;
 };
 
+/** True if webhook URL or notify email is configured. */
 export function isQuirkNotifyConfigured(): boolean {
   return Boolean(
     process.env.HAWKCHAT_QUIRK_WEBHOOK_URL?.trim() ||
@@ -33,6 +39,7 @@ function formatNewQuirkMessage(report: NewQuirkNotification): string {
   return lines.join("\n");
 }
 
+/** Post webhook and/or email staff; returns which channels were attempted. */
 export async function notifyNewQuirkReport(
   report: NewQuirkNotification,
 ): Promise<{ attempted: boolean; channels: string[]; errors: string[] }> {

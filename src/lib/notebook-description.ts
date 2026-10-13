@@ -1,3 +1,7 @@
+/**
+ * Home-page notebook card subtitle (manifest description or derived counts).
+ * Look here when card copy is wrong for Kit Quirks or empty notebooks.
+ */
 /** Subtitle under a notebook title on the home page. */
 export function notebookCardDescription(
   notebookId: string,

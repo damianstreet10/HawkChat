@@ -1,0 +1,30 @@
+{
+  "eventTitle": "Test",
+  "eventDescription": "Test Event",
+  "notebooks": [
+    {
+      "notebookId": "test-event-useful-resources",
+      "notebookTitle": "Useful Resources",
+      "documentsDir": "events/test-event/useful-resources",
+      "description": "General briefing documents, travel, and production guides."
+    },
+    {
+      "notebookId": "test-event-hardware-support",
+      "notebookTitle": "Hardware Support",
+      "documentsDir": "events/test-event/hardware-support",
+      "description": "Hardware manuals and troubleshooting — ask support-specific questions here."
+    },
+    {
+      "notebookId": "test-event-software-support",
+      "notebookTitle": "Software Support",
+      "documentsDir": "events/test-event/software-support",
+      "description": "Software guides, release notes, and troubleshooting — ask software-specific questions here."
+    },
+    {
+      "notebookId": "test-event-kit-quirks",
+      "notebookTitle": "Kit Quirks",
+      "documentsDir": "events/test-event/kit-quirks",
+      "description": "Report kit or PC quirks for admin review (not a chat notebook)."
+    }
+  ]
+}

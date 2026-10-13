@@ -1,11 +1,18 @@
+/**
+ * Site-wide password gate cookies (Node crypto) plus optional guest label cookie.
+ * Look here when HAWKCHAT_SITE_PASSWORD unlock fails, or staff login should
+ * grant site access via grantSiteAccessCookieOptions.
+ */
 import { createHmac, timingSafeEqual } from "crypto";
 
 export const SITE_ACCESS_COOKIE = "hawkchat_site";
 
+/** True when HAWKCHAT_SITE_PASSWORD is set (gate active). */
 export function isSiteGateEnabled(): boolean {
   return Boolean(process.env.HAWKCHAT_SITE_PASSWORD?.trim());
 }
 
+/** HMAC token stored in the site-access cookie for the configured password. */
 export function siteAccessToken(password: string): string {
   const secret =
     process.env.HAWKCHAT_SITE_COOKIE_SECRET?.trim() ||
@@ -62,6 +69,8 @@ export function clearSiteAccessCookieOptions() {
     maxAge: 0,
   };
 }
+
+// --- Guest label ---
 
 export const GUEST_LABEL_COOKIE = "hawkchat_guest_label";
 

@@ -1,6 +1,11 @@
-/** Edge-safe site gate check for middleware (matches site-gate.ts HMAC). */
+/**
+ * Edge-safe site gate check for middleware (Web Crypto; matches site-gate.ts HMAC).
+ * Look here when middleware rejects a valid site cookie or Node vs Edge token
+ * generation drifts (HAWKCHAT_SITE_COOKIE_SECRET / SITE_PASSWORD).
+ */
 export const SITE_ACCESS_COOKIE = "hawkchat_site";
 
+/** HMAC token via SubtleCrypto (must match siteAccessToken in site-gate.ts). */
 export async function siteAccessTokenEdge(password: string): Promise<string> {
   const secret =
     process.env.HAWKCHAT_SITE_COOKIE_SECRET?.trim() ||

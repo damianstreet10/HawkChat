@@ -1,3 +1,7 @@
+/**
+ * Filenames shown on notebook cards (prefer seed folder, else DB sources).
+ * Look here when document lists are empty despite files on disk or in SQLite.
+ */
 import type Database from "better-sqlite3";
 import { listSeedDocuments, type SeedNotebook } from "./seed-manifest";
 

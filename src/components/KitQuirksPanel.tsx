@@ -1,5 +1,9 @@
 "use client";
 
+/**
+ * End-user kit quirk report form (replaces chat for quirks notebooks).
+ * Debug submit/validation or guest label prefill from `/api/client/session`.
+ */
 import { useEffect, useState } from "react";
 
 export function KitQuirksPanel({ eventSlug }: { eventSlug?: string }) {
