@@ -4,6 +4,7 @@
  * or disk seed files aren't indexed into SQLite.
  */
 import path from "path";
+import { hasActiveAiKey, missingAiKeyMessage } from "./ai-provider";
 import { getDb } from "./db";
 import { readSeedManifest, type SeedNotebook } from "./seed-manifest";
 import { listSeedFilesOnDisk, syncNotebookFromSeedDir } from "./seed-sync";
@@ -138,9 +139,9 @@ async function runAutoSeed(): Promise<void> {
   const notebooks = readSeedManifest();
   if (!notebooks?.length) return;
 
-  if (!process.env.OPENAI_API_KEY?.trim()) {
+  if (!hasActiveAiKey()) {
     console.warn(
-      "[HawkChat] OPENAI_API_KEY missing — notebooks exist but PDFs are not indexed. Add your key and restart.",
+      `[HawkChat] ${missingAiKeyMessage()} Notebooks exist but PDFs are not indexed.`,
     );
     return;
   }

@@ -4,6 +4,7 @@
  * back to the main LAN auto-seed path instead of seed/events/*.
  */
 import path from "path";
+import { hasActiveAiKey, missingAiKeyMessage } from "./ai-provider";
 import { getDb } from "./db";
 import { readEventManifest } from "./event-manifest";
 import { isWorldCupEvent } from "./world-cup-event";
@@ -100,9 +101,9 @@ async function runEventSeed(eventSlug: string): Promise<void> {
   const manifest = readEventManifest(eventSlug);
   if (!manifest?.notebooks.length) return;
 
-  if (!process.env.OPENAI_API_KEY?.trim()) {
+  if (!hasActiveAiKey()) {
     console.warn(
-      `[HawkChat] OPENAI_API_KEY missing — event "${eventSlug}" notebooks exist but PDFs are not indexed.`,
+      `[HawkChat] ${missingAiKeyMessage()} Event "${eventSlug}" notebooks exist but PDFs are not indexed.`,
     );
     return;
   }

@@ -1,29 +1,29 @@
 /**
- * OpenAI embeddings + cosine similarity for RAG retrieval.
- * Look here when ingest/chat fails with OPENAI_API_KEY errors, or retrieval
- * scores look wrong (model: OPENAI_EMBEDDING_MODEL).
+ * Embeddings + cosine similarity for RAG retrieval (Gemini or OpenAI).
+ * Provider: HAWKCHAT_AI_PROVIDER. After switching providers, re-index documents
+ * (restart with auto-seed / re-upload) — old vectors are not compatible.
  */
 import OpenAI from "openai";
+import {
+  getAiProvider,
+  getOpenAiEmbeddingModel,
+} from "./ai-provider";
+import { geminiEmbedTexts } from "./gemini";
 
-const EMBEDDING_MODEL =
-  process.env.OPENAI_EMBEDDING_MODEL ?? "text-embedding-3-small";
-
-function getClient(): OpenAI {
+function getOpenAiClient(): OpenAI {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error(
-      "OPENAI_API_KEY is required. Copy .env.example to .env and add your key.",
+      "OPENAI_API_KEY is required when HAWKCHAT_AI_PROVIDER=openai.",
     );
   }
   return new OpenAI({ apiKey });
 }
 
-/** Embed many strings in one API call (order preserved). */
-export async function embedTexts(texts: string[]): Promise<number[][]> {
-  if (texts.length === 0) return [];
-  const client = getClient();
+async function openAiEmbedTexts(texts: string[]): Promise<number[][]> {
+  const client = getOpenAiClient();
   const response = await client.embeddings.create({
-    model: EMBEDDING_MODEL,
+    model: getOpenAiEmbeddingModel(),
     input: texts,
   });
   return response.data
@@ -31,8 +31,22 @@ export async function embedTexts(texts: string[]): Promise<number[][]> {
     .map((d) => d.embedding);
 }
 
+/** Embed many strings in one API call (order preserved). */
+export async function embedTexts(texts: string[]): Promise<number[][]> {
+  if (texts.length === 0) return [];
+  if (getAiProvider() === "gemini") {
+    return geminiEmbedTexts(texts, "RETRIEVAL_DOCUMENT");
+  }
+  return openAiEmbedTexts(texts);
+}
+
+/** Embed a single query string (uses RETRIEVAL_QUERY task for Gemini). */
 export async function embedText(text: string): Promise<number[]> {
-  const [embedding] = await embedTexts([text]);
+  if (getAiProvider() === "gemini") {
+    const [embedding] = await geminiEmbedTexts([text], "RETRIEVAL_QUERY");
+    return embedding;
+  }
+  const [embedding] = await openAiEmbedTexts([text]);
   return embedding;
 }
 

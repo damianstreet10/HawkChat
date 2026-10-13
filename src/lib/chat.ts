@@ -1,17 +1,20 @@
 /**
- * RAG chat completion: retrieve chunks, call OpenAI, return answer + citations.
- * Look here when answers ignore documents, citations are empty, or OPENAI_CHAT_MODEL
- * / API key errors surface during ask.
+ * RAG chat completion: retrieve chunks, call Gemini or OpenAI, return answer + citations.
+ * Provider: HAWKCHAT_AI_PROVIDER=gemini|openai. Look here for empty citations,
+ * wrong provider key, or model env vars (GEMINI_CHAT_MODEL / OPENAI_CHAT_MODEL).
  */
 import OpenAI from "openai";
+import {
+  getAiProvider,
+  getOpenAiChatModel,
+} from "./ai-provider";
+import { geminiGenerateReply } from "./gemini";
 import {
   buildContextBlock,
   chunksToCitations,
   retrieveChunks,
 } from "./rag";
 import type { Citation } from "./db";
-
-const CHAT_MODEL = process.env.OPENAI_CHAT_MODEL ?? "gpt-4o-mini";
 
 const SYSTEM_PROMPT = `You are HawkChat, a strict document Q&A assistant (like NotebookLM).
 
@@ -23,14 +26,31 @@ CRITICAL RULES:
 5. Do not give generic overviews. Answer the specific question asked.
 6. Use short markdown bullets when listing multiple points.`;
 
-function getClient(): OpenAI {
+function getOpenAiClient(): OpenAI {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error(
-      "OPENAI_API_KEY is required. Copy .env.example to .env and add your key.",
+      "OPENAI_API_KEY is required when HAWKCHAT_AI_PROVIDER=openai.",
     );
   }
   return new OpenAI({ apiKey });
+}
+
+async function openAiGenerateReply(userPrompt: string): Promise<string> {
+  const client = getOpenAiClient();
+  const response = await client.chat.completions.create({
+    model: getOpenAiChatModel(),
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: userPrompt },
+    ],
+    temperature: 0.1,
+    max_tokens: 2048,
+  });
+  return (
+    response.choices[0]?.message?.content?.trim() ??
+    "Sorry, I couldn't generate a response."
+  );
 }
 
 /** Retrieve notebook context and ask the chat model; returns markdown + citations. */
@@ -51,8 +71,6 @@ export async function generateGroundedReply(
   const context = buildContextBlock(chunks);
   const citations = chunksToCitations(chunks);
 
-  const client = getClient();
-
   const historyText =
     history.length > 0
       ? `\n\nPrior conversation (for context only — still answer from excerpts):\n${history
@@ -61,24 +79,16 @@ export async function generateGroundedReply(
           .join("\n")}`
       : "";
 
-  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-    { role: "system", content: SYSTEM_PROMPT },
-    {
-      role: "user",
-      content: `SOURCE EXCERPTS (your only allowed facts):\n\n${context}${historyText}\n\n---\n\nQUESTION: ${userMessage}\n\nAnswer using only the excerpts. Cite with [1], [2], etc.`,
-    },
-  ];
+  const userPrompt = `SOURCE EXCERPTS (your only allowed facts):\n\n${context}${historyText}\n\n---\n\nQUESTION: ${userMessage}\n\nAnswer using only the excerpts. Cite with [1], [2], etc.`;
 
-  const response = await client.chat.completions.create({
-    model: CHAT_MODEL,
-    messages,
-    temperature: 0.1,
-    max_tokens: 2048,
-  });
-
+  const provider = getAiProvider();
   const content =
-    response.choices[0]?.message?.content?.trim() ??
-    "Sorry, I couldn't generate a response.";
+    provider === "gemini"
+      ? await geminiGenerateReply({
+          systemPrompt: SYSTEM_PROMPT,
+          userPrompt,
+        })
+      : await openAiGenerateReply(userPrompt);
 
   return { content, citations };
 }

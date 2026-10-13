@@ -36,6 +36,7 @@ function NotebookPageContent() {
   const [chatDisabledReason, setChatDisabledReason] = useState<string | null>(
     null,
   );
+  const [eventTitle, setEventTitle] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/notebooks/${id}`)
@@ -64,6 +65,9 @@ function NotebookPageContent() {
     fetch(`/api/events/${eventSlug}`)
       .then((r) => r.json())
       .then((event) => {
+        if (typeof event.title === "string" && event.title.trim()) {
+          setEventTitle(event.title.trim());
+        }
         const open = event.chatOpen !== false;
         setChatOpen(open);
         if (open) {
@@ -149,6 +153,9 @@ function NotebookPageContent() {
         ) : (
           <ChatPanel
             notebookId={id}
+            notebookTitle={title}
+            eventSlug={eventSlug}
+            eventTitle={eventTitle}
             chatDisabled={!chatOpen}
             chatDisabledReason={chatDisabledReason}
           />

@@ -29,11 +29,19 @@ function MessageFeedbackButtons({
   messageId,
   feedback,
   onFeedback,
+  jiraEnabled,
+  onOpenJira,
+  jiraBusy,
+  jiraResult,
 }: {
   notebookId: string;
   messageId: string;
   feedback?: MessageFeedback | null;
   onFeedback: (value: MessageFeedback) => void;
+  jiraEnabled: boolean;
+  onOpenJira: () => void;
+  jiraBusy: boolean;
+  jiraResult: string | null;
 }) {
   const [submitting, setSubmitting] = useState(false);
 
@@ -58,39 +66,55 @@ function MessageFeedbackButtons({
     }
   }
 
-  if (feedback) {
-    return (
-      <p
-        className={`mt-3 border-t border-hawk-700 pt-3 text-xs ${
-          feedback === "helpful" ? "text-emerald-300" : "text-hawk-400"
-        }`}
-      >
-        {feedback === "helpful"
-          ? "Thanks — marked as helpful."
-          : "Thanks — marked as not helpful."}
-      </p>
-    );
-  }
-
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-hawk-700 pt-3">
-      <span className="text-xs text-hawk-400">Was this helpful?</span>
-      <button
-        type="button"
-        onClick={() => submit("helpful")}
-        disabled={submitting}
-        className="hawk-btn-secondary px-3 py-1 text-xs disabled:opacity-60"
-      >
-        This helped
-      </button>
-      <button
-        type="button"
-        onClick={() => submit("not_helpful")}
-        disabled={submitting}
-        className="hawk-btn-secondary px-3 py-1 text-xs disabled:opacity-60"
-      >
-        This didn&apos;t help
-      </button>
+    <div className="mt-3 space-y-2 border-t border-hawk-700 pt-3">
+      {feedback ? (
+        <p
+          className={`text-xs ${
+            feedback === "helpful" ? "text-emerald-300" : "text-hawk-400"
+          }`}
+        >
+          {feedback === "helpful"
+            ? "Thanks — marked as helpful."
+            : "Thanks — marked as not helpful."}
+        </p>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-hawk-400">Was this helpful?</span>
+          <button
+            type="button"
+            onClick={() => submit("helpful")}
+            disabled={submitting}
+            className="hawk-btn-secondary px-3 py-1 text-xs disabled:opacity-60"
+          >
+            This helped
+          </button>
+          <button
+            type="button"
+            onClick={() => submit("not_helpful")}
+            disabled={submitting}
+            className="hawk-btn-secondary px-3 py-1 text-xs disabled:opacity-60"
+          >
+            This didn&apos;t help
+          </button>
+        </div>
+      )}
+
+      {jiraEnabled && (
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpenJira}
+            disabled={jiraBusy}
+            className="hawk-btn-secondary px-3 py-1 text-xs disabled:opacity-60"
+          >
+            {jiraBusy ? "Opening ticket…" : "Open Jira ticket"}
+          </button>
+          {jiraResult && (
+            <span className="text-xs text-hawk-300">{jiraResult}</span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -106,17 +130,93 @@ const LAN_DEMO = process.env.NEXT_PUBLIC_HAWKCHAT_LAN_DEMO === "true";
 
 export function ChatPanel({
   notebookId,
+  notebookTitle,
+  eventSlug,
+  eventTitle,
   chatDisabled = false,
   chatDisabledReason,
 }: {
   notebookId: string;
+  notebookTitle?: string;
+  eventSlug?: string | null;
+  eventTitle?: string | null;
   chatDisabled?: boolean;
   chatDisabledReason?: string | null;
 }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [jiraEnabled, setJiraEnabled] = useState(false);
+  const [jiraBusyId, setJiraBusyId] = useState<string | null>(null);
+  const [jiraResults, setJiraResults] = useState<Record<string, string>>({});
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetch("/api/jira")
+      .then((r) => r.json())
+      .then((data) => setJiraEnabled(Boolean(data.enabled)))
+      .catch(() => setJiraEnabled(false));
+  }, []);
+
+  async function openJiraTicket(assistantMessage: Message, index: number) {
+    if (jiraBusyId) return;
+    const prior = [...messages]
+      .slice(0, index)
+      .reverse()
+      .find((m) => m.role === "user");
+    const question = prior?.content?.trim();
+    if (!question) {
+      setJiraResults((prev) => ({
+        ...prev,
+        [assistantMessage.id]: "No question found above this answer.",
+      }));
+      return;
+    }
+
+    setJiraBusyId(assistantMessage.id);
+    setJiraResults((prev) => ({ ...prev, [assistantMessage.id]: "" }));
+    try {
+      const res = await fetch("/api/jira", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question,
+          answer: assistantMessage.content,
+          notebookId,
+          notebookTitle: notebookTitle ?? "",
+          eventSlug: eventSlug ?? "",
+          eventTitle: eventTitle ?? "",
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setJiraResults((prev) => ({
+          ...prev,
+          [assistantMessage.id]: data.error ?? "Could not create ticket.",
+        }));
+        return;
+      }
+      const key = data.issue?.key as string | undefined;
+      const url = data.issue?.url as string | undefined;
+      const epicKey = data.issue?.epicKey as string | undefined;
+      setJiraResults((prev) => ({
+        ...prev,
+        [assistantMessage.id]: key
+          ? `Created ${key}${epicKey ? ` under ${epicKey}` : ""}`
+          : "Ticket created.",
+      }));
+      if (url) {
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
+    } catch {
+      setJiraResults((prev) => ({
+        ...prev,
+        [assistantMessage.id]: "Could not create ticket.",
+      }));
+    } finally {
+      setJiraBusyId(null);
+    }
+  }
 
   const loadMessages = useCallback(async () => {
     try {
@@ -235,7 +335,7 @@ export function ChatPanel({
           </div>
         ) : (
           <div className="mx-auto max-w-2xl space-y-6">
-            {messages.map((msg) => (
+            {messages.map((msg, index) => (
               <div
                 key={msg.id}
                 className={
@@ -261,6 +361,10 @@ export function ChatPanel({
                           ),
                         )
                       }
+                      jiraEnabled={jiraEnabled}
+                      onOpenJira={() => openJiraTicket(msg, index)}
+                      jiraBusy={jiraBusyId === msg.id}
+                      jiraResult={jiraResults[msg.id] ?? null}
                     />
                   </div>
                 ) : (
